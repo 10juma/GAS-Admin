@@ -1,0 +1,23 @@
+# .NET
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio / VS Code
+.vs/
+*.user
+*.suo
+
+# macOS
+.DS_Store
+
+# Configuración local y secretos
+appsettings.Development.json
+secrets.json
+
+# Logs
+*.log
+
+# Temporales
+*.tmp
