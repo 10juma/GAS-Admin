@@ -174,11 +174,9 @@ builder.Services.AddRazorPages(options =>
 
 var app = builder.Build();
 
+// Solo se siembran roles y permisos; los catálogos (productos, servicios, departamentos, categorías,
+// SLA, empresa) los captura el usuario desde cero.
 await SeguridadSeeder.SeedAsync(app.Services);
-await CatalogosSeeder.SeedAsync(app.Services);
-await OrganizacionSeeder.SeedAsync(app.Services);
-await FinanzasSeeder.SeedAsync(app.Services);
-await SoporteSeeder.SeedAsync(app.Services);
 
 if (!app.Environment.IsDevelopment())
 {

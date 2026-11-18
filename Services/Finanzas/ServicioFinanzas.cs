@@ -1,6 +1,5 @@
 using System.Globalization;
 using GAS.Admin.Data.Context;
-using GAS.Admin.Data.Seed;
 using GAS.Admin.Helpers;
 using GAS.Admin.Models.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -70,7 +69,7 @@ public class ServicioFinanzas
         var hoy = Hoy;
         var tc = await TipoCambioAsync(c.Moneda, hoy) ?? 0;
         var recurrente = t.Tipo == TipoTrabajoOperativo.ServicioRecurrente;
-        var categoria = await CategoriaAsync(recurrente ? FinanzasSeeder.Categorias.Recurrentes : FinanzasSeeder.Categorias.Desarrollo, TipoMovimiento.Ingreso);
+        var categoria = await CategoriaAsync(recurrente ? CategoriasSistema.Recurrentes : CategoriasSistema.Desarrollo, TipoMovimiento.Ingreso);
 
         Movimiento Cobro(string concepto, decimal subtotal, DateOnly fecha) => new()
         {
@@ -163,7 +162,7 @@ public class ServicioFinanzas
         {
             Tipo = TipoMovimiento.Ingreso,
             Concepto = Recortar($"Mensualidad {ciclo.Periodo.ToString("MMMM yyyy", Mx)} · {t.Nombre}"),
-            CategoriaId = await CategoriaAsync(FinanzasSeeder.Categorias.Recurrentes, TipoMovimiento.Ingreso),
+            CategoriaId = await CategoriaAsync(CategoriasSistema.Recurrentes, TipoMovimiento.Ingreso),
             Linea = LineaNegocio.Servicios,
             Origen = OrigenMovimiento.CicloRecurrente,
             FechaProgramada = ciclo.Periodo < hoy ? hoy : ciclo.Periodo,
@@ -240,8 +239,8 @@ public class ServicioFinanzas
         var pendientes = await RenovacionesSinCargoAsync(dias);
         if (pendientes.Count == 0) return 0;
 
-        var software = await CategoriaAsync(FinanzasSeeder.Categorias.Software, TipoMovimiento.Egreso);
-        var dominios = await CategoriaAsync(FinanzasSeeder.Categorias.Dominios, TipoMovimiento.Egreso);
+        var software = await CategoriaAsync(CategoriasSistema.Software, TipoMovimiento.Egreso);
+        var dominios = await CategoriaAsync(CategoriasSistema.Dominios, TipoMovimiento.Egreso);
         foreach (var r in pendientes)
         {
             Movimiento m;

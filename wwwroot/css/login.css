@@ -361,7 +361,7 @@ body {
 
 /* Envío del formulario: spinner y sin doble clic */
 .login-button.is-loading { pointer-events: none; opacity: .85; }
-.login-button.is-loading > span[aria-hidden] { display: none; }
+.login-button.is-loading > span[aria-hidden]:not(.gas-spinner) { display: none; }
 .gas-spinner {
     width: 15px;
     height: 15px;

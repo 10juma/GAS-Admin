@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
 using GAS.Admin.Data.Context;
-using GAS.Admin.Data.Seed;
 using GAS.Admin.Helpers;
 using GAS.Admin.Models.Entities;
 using GAS.Admin.Services.Finanzas;
@@ -272,9 +271,9 @@ public class ServicioStripe
             .OrderBy(f => f.FechaUtc).ToListAsync(ct);
         if (pendientes.Count == 0) return 0;
 
-        var catIngreso = await _db.CategoriasFinancieras.Where(x => x.Nombre == FinanzasSeeder.Categorias.Suscripciones && x.Tipo == TipoMovimiento.Ingreso)
+        var catIngreso = await _db.CategoriasFinancieras.Where(x => x.Nombre == CategoriasSistema.Suscripciones && x.Tipo == TipoMovimiento.Ingreso)
             .Select(x => (int?)x.Id).FirstOrDefaultAsync(ct);
-        var catComision = await _db.CategoriasFinancieras.Where(x => x.Nombre == FinanzasSeeder.Categorias.Comisiones && x.Tipo == TipoMovimiento.Egreso)
+        var catComision = await _db.CategoriasFinancieras.Where(x => x.Nombre == CategoriasSistema.Comisiones && x.Tipo == TipoMovimiento.Egreso)
             .Select(x => (int?)x.Id).FirstOrDefaultAsync(ct);
         var servicioStripe = await _db.ServiciosExternos.Where(s => s.Nombre == "Stripe").Select(s => (int?)s.Id).FirstOrDefaultAsync(ct);
 

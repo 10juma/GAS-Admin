@@ -1,4 +1,4 @@
-@model (List<SlaPrioridad> Sla, bool PuedeGestionar)
+@model (List<GAS.Admin.Pages.Soporte.IndexModel.SlaFila> Sla, bool PuedeGestionar)
 @{
     var off = !Model.PuedeGestionar;
 }
@@ -7,7 +7,7 @@
         <span class="gas-modal__icon">@Iconos.Svg("clock")</span>
         <div class="min-w-0">
             <h2 class="modal-title">Tiempos de servicio (SLA)</h2>
-            <div class="gas-modal__subtitle">Horas naturales desde que se crea el ticket. Aplican a tickets nuevos y a los que cambian de prioridad.</div>
+            <div class="gas-modal__subtitle">Horas naturales desde que se crea el ticket. Aplican a tickets nuevos y a los que cambian de prioridad. Deja vacía una prioridad para no medirle tiempos.</div>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
     </div>
@@ -23,8 +23,8 @@
                                 var s = Model.Sla[i];
                                 <tr>
                                     <td><span class="gas-badge @Etiquetas.Badge(s.Prioridad)">@Etiquetas.Texto(s.Prioridad)</span><input type="hidden" name="sla[@i].Prioridad" value="@s.Prioridad" /></td>
-                                    <td><input name="sla[@i].PrimeraRespuestaHoras" value="@s.PrimeraRespuestaHoras" type="number" min="1" max="720" class="form-control form-control-sm" disabled="@off" aria-label="Primera respuesta en horas" /></td>
-                                    <td><input name="sla[@i].ResolucionHoras" value="@s.ResolucionHoras" type="number" min="1" max="2160" class="form-control form-control-sm" disabled="@off" aria-label="Resolución en horas" /></td>
+                                    <td><input name="sla[@i].PrimeraRespuestaHoras" value="@s.PrimeraRespuestaHoras" placeholder="Sin SLA" type="number" min="1" max="720" class="form-control form-control-sm" disabled="@off" aria-label="Primera respuesta en horas" /></td>
+                                    <td><input name="sla[@i].ResolucionHoras" value="@s.ResolucionHoras" placeholder="Sin SLA" type="number" min="1" max="2160" class="form-control form-control-sm" disabled="@off" aria-label="Resolución en horas" /></td>
                                 </tr>
                             }
                         </tbody>

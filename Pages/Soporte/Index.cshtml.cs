@@ -138,26 +138,46 @@ public class IndexModel : PageModel
 
     // ---------- SLA ----------
 
-    public async Task<IActionResult> OnGetSlaAsync()
+    /// <summary>Una fila del modal de SLA; vacía = esa prioridad no tiene tiempos.</summary>
+    public sealed class SlaFila
     {
-        var sla = await _db.SlaPrioridades.AsNoTracking().ToListAsync();
-        return Partial("_SlaModal", (sla.OrderByDescending(x => x.Prioridad).ToList(), PuedeGestionar));
+        public Prioridad Prioridad { get; set; }
+        public int? PrimeraRespuestaHoras { get; set; }
+        public int? ResolucionHoras { get; set; }
     }
 
-    public async Task<IActionResult> OnPostSlaAsync(List<SlaPrioridad> sla)
+    public async Task<IActionResult> OnGetSlaAsync()
+    {
+        var actuales = await _db.SlaPrioridades.AsNoTracking().ToDictionaryAsync(s => s.Prioridad);
+        // Siempre las cuatro prioridades, aunque aún no tengan tiempos capturados.
+        var filas = Enum.GetValues<Prioridad>().OrderByDescending(p => p)
+            .Select(p => actuales.TryGetValue(p, out var s)
+                ? new SlaFila { Prioridad = p, PrimeraRespuestaHoras = s.PrimeraRespuestaHoras, ResolucionHoras = s.ResolucionHoras }
+                : new SlaFila { Prioridad = p })
+            .ToList();
+        return Partial("_SlaModal", (filas, PuedeGestionar));
+    }
+
+    public async Task<IActionResult> OnPostSlaAsync(List<SlaFila> sla)
     {
         if (!PuedeGestionar) return Forbid();
         var actuales = await _db.SlaPrioridades.ToDictionaryAsync(s => s.Prioridad);
-        foreach (var s in sla)
+        foreach (var s in sla.Where(x => Enum.IsDefined(x.Prioridad)))
         {
-            if (!actuales.TryGetValue(s.Prioridad, out var a)) continue;
-            if (s.PrimeraRespuestaHoras is < 1 or > 720 || s.ResolucionHoras is < 1 or > 2160 || s.ResolucionHoras < s.PrimeraRespuestaHoras)
+            actuales.TryGetValue(s.Prioridad, out var a);
+            if (s.PrimeraRespuestaHoras is null && s.ResolucionHoras is null)
             {
-                this.ToastWarning($"Revisa los tiempos de {Etiquetas.Texto(s.Prioridad)}: la resolución debe ser mayor o igual a la primera respuesta (1 a 2160 h).");
+                if (a is not null) _db.SlaPrioridades.Remove(a); // sin tiempos para esa prioridad
+                continue;
+            }
+            if (s.PrimeraRespuestaHoras is null or < 1 or > 720 || s.ResolucionHoras is null or < 1 or > 2160 || s.ResolucionHoras < s.PrimeraRespuestaHoras)
+            {
+                this.ToastWarning($"Revisa los tiempos de {Etiquetas.Texto(s.Prioridad)}: captura ambos, la resolución debe ser mayor o igual a la primera respuesta (1 a 2160 h). Déjalos vacíos para no tener SLA.");
                 return RedirectToPage("Index");
             }
-            a.PrimeraRespuestaHoras = s.PrimeraRespuestaHoras;
-            a.ResolucionHoras = s.ResolucionHoras;
+            if (a is null) _db.SlaPrioridades.Add(a = new SlaPrioridad { Prioridad = s.Prioridad });
+            a.PrimeraRespuestaHoras = s.PrimeraRespuestaHoras.Value;
+            a.ResolucionHoras = s.ResolucionHoras.Value;
         }
         await _db.SaveChangesAsync();
         this.ToastSuccess("Tiempos de servicio actualizados. Aplican a los tickets nuevos y a los que cambien de prioridad.");

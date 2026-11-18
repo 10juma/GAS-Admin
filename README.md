@@ -39,6 +39,11 @@ ventas, proyectos, finanzas, infraestructura, atención al cliente, equipo y seg
 | **Stripe, UptimeRobot, GitHub, Sentry** | Integraciones de solo lectura vía HTTP, sincronizadas en segundo plano. |
 | **Bootstrap 5 + CSS propio** (`wwwroot/css/gas.css`) | Interfaz; sin frameworks de JavaScript (`wwwroot/js/site.js`). |
 
+Los movimientos automáticos (cotizaciones aprobadas, renovaciones, Stripe) se asignan a una categoría financiera si
+existe una con el nombre esperado (`Services/Finanzas/CategoriasSistema.cs`: "Suscripciones SaaS", "Desarrollo y
+proyectos", "Servicios recurrentes", "Servicios en la nube y software", "Dominios y hosting", "Comisiones bancarias y
+de pago"); si no existe, el movimiento queda sin categoría.
+
 Toda la interfaz está en español y con formatos de México (`es-MX`, horario del centro de México).
 
 ---
@@ -149,8 +154,9 @@ Requisitos: **.NET 10 SDK**, acceso a la base `GAS` y la herramienta de EF (`dot
    dotnet run --launch-profile https
    ```
 
-   La llave maestra se crea sola en `~/.gas-admin/llave-maestra.key`. Al arrancar se siembran, solo si faltan,
-   roles y permisos, productos y servicios externos base, departamentos, categorías financieras y SLA de soporte.
+   La llave maestra se crea sola en `~/.gas-admin/llave-maestra.key`. Al arrancar solo se siembran los roles y sus
+   permisos (si faltan); productos, servicios externos, departamentos, categorías financieras, SLA y datos de la
+   empresa se capturan desde la aplicación.
 
 4. **Primer administrador** (solo si la base es nueva): arranca una vez con las variables
    `SeedAdmin__Email`, `SeedAdmin__Password` (y opcional `SeedAdmin__Nombre`) en ambiente Development; después
