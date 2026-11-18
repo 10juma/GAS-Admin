@@ -1,0 +1,15 @@
+@* Chips de filtro con contador: (url base, filtro actual, lista de (valor, texto, conteo, tono)) *@
+@model (string Pagina, string? Actual, IEnumerable<(string? Valor, string Texto, int Conteo, string Tono)> Opciones, IDictionary<string, string>? Extra)
+<nav class="gas-chips" aria-label="Filtros">
+    @foreach (var (valor, texto, conteo, tono) in Model.Opciones)
+    {
+        var ruta = new Dictionary<string, string>(Model.Extra ?? new Dictionary<string, string>());
+        if (valor is not null) ruta["estado"] = valor;
+        var activo = (Model.Actual ?? "") == (valor ?? "");
+        <a asp-page="@Model.Pagina" asp-all-route-data="ruta"
+           class="gas-chip @(conteo > 0 && tono.Length > 0 ? "gas-chip--" + tono : "") @(activo ? "is-active" : "")"
+           aria-current="@(activo ? "true" : null)">
+            @texto <span class="gas-chip__count">@conteo</span>
+        </a>
+    }
+</nav>

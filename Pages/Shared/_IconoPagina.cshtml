@@ -1,0 +1,8 @@
+@* Ícono del título de la página: el mismo de su opción en el menú. *@
+@{
+    var item = MenuPrincipal.ItemDe(ViewContext.RouteData.Values["page"]?.ToString() ?? "");
+}
+@if (item is not null)
+{
+    <span class="gas-page-icon">@Html.Raw(MenuPrincipal.Svg(item.Icono))</span>
+}

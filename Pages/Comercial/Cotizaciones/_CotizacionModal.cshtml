@@ -1,0 +1,353 @@
+@model GAS.Admin.Pages.Comercial.Cotizaciones.CotizacionModalVm
+@using System.Globalization
+@using System.Text.Json
+@{
+    var off = !Model.Editable;
+    var formId = Model.EsNuevo ? "form-cotizacion-nueva" : $"form-cotizacion-{Model.Id}";
+    var i = Model.Input;
+    var responsable = (Nombre: "Input.ResponsableId", Id: formId + "-resp", Seleccionado: i.ResponsableId, Opciones: Model.Responsables, Deshabilitado: off);
+    var catalogoJson = JsonSerializer.Serialize(Model.Catalogo, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    var ruta = new Dictionary<string, string>();
+    if (Model.Id is not null) ruta["id"] = Model.Id.Value.ToString();
+    if (!string.IsNullOrEmpty(Model.Filtro)) ruta["estado"] = Model.Filtro;
+    if (!string.IsNullOrEmpty(Model.Q)) ruta["q"] = Model.Q;
+    var abierta = Model.Estado is EstadoCotizacion.Borrador or EstadoCotizacion.Enviada;
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg("note")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@(Model.EsNuevo ? "Nueva cotización" : $"{Model.Folio} · {i.Titulo}")</h2>
+            @if (Model.EsNuevo)
+            {
+                <div class="gas-modal__subtitle">Se guarda como borrador; el folio se asigna al crearla.</div>
+            }
+            else
+            {
+                <div class="gas-badges mt-2">
+                    @if (Model.Vencida)
+                    {
+                        <span class="gas-badge gas-badge--danger">Vencida</span>
+                    }
+                    else
+                    {
+                        <span class="gas-badge @Etiquetas.Badge(Model.Estado)">@Etiquetas.Texto(Model.Estado)</span>
+                    }
+                    @if (Model.TipoTrabajo is not null)
+                    {
+                        <span class="gas-badge gas-badge--success gas-badge--plain">@Iconos.Svg("check") @Etiquetas.Texto(Model.TipoTrabajo.Value) · @Fechas.Formato(Model.FechaAprobacionUtc)</span>
+                    }
+                    @if (Model.Trabajo is not null)
+                    {
+                        <a class="gas-badge gas-badge--violet gas-badge--btn text-decoration-none" href="@Url.Page("/Proyectos/Detalle/Index", new { id = Model.Trabajo.Id })">@Iconos.Svg("layers") @Model.Trabajo.Titulo</a>
+                    }
+                    @if (Model.Envios.Any(e => e.Exito))
+                    {
+                        var ultimo = Model.Envios.First(e => e.Exito);
+                        <span class="gas-badge gas-badge--info gas-badge--plain" title="@ultimo.Para">@Iconos.Svg("mail") Enviada @Fechas.Relativo(ultimo.FechaUtc).ToLowerInvariant()</span>
+                    }
+                    <partial name="_Trazabilidad" model="(Model.CreadoUtc, Model.CreadoPor, Model.ModificadoUtc, Model.ModificadoPor)" />
+                </div>
+            }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body">
+        @if (!Model.EsNuevo && !Model.Editable && Model.PuedeGestionar && abierta)
+        {
+            <div class="gas-callout">
+                <div class="gas-callout__text">
+                    <strong>Esta cotización ya se envió</strong>
+                    Para cambiar conceptos o precios crea una nueva versión desde Acciones; la actual quedará como reemplazada.
+                </div>
+            </div>
+        }
+
+        <form id="@formId" method="post" novalidate asp-page="/Comercial/Cotizaciones/Index"
+              asp-page-handler="@(Model.EsNuevo ? "Crear" : "Guardar")" asp-route-id="@Model.Id" data-cotizacion>
+            <input type="hidden" name="Estado" value="@Model.Filtro" />
+            <input type="hidden" name="Q" value="@Model.Q" />
+            <script type="application/json" data-catalogo>@Html.Raw(catalogoJson)</script>
+
+            <div class="row g-3">
+                <div class="col-xl-8">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Datos generales</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label class="form-label" for="@formId-titulo">Título</label>
+                                    <input id="@formId-titulo" name="Input.Titulo" value="@i.Titulo" class="form-control" maxlength="200" disabled="@off" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-resp">Responsable</label>
+                                    <partial name="_SelectResponsable" model="responsable" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-cliente">Cliente</label>
+                                    <select id="@formId-cliente" name="Input.ClienteId" class="form-select" disabled="@off" data-cliente>
+                                        <option value="">Elegir…</option>
+                                        @foreach (var c in Model.Clientes)
+                                        {
+                                            <option value="@c.Id" selected="@(c.Id == i.ClienteId)">@c.Nombre@(c.Estado == EstadoCliente.Prospecto ? " (prospecto)" : "")</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-op">Oportunidad</label>
+                                    <select id="@formId-op" name="Input.OportunidadId" class="form-select" disabled="@off" data-oportunidad>
+                                        <option value="">Sin oportunidad</option>
+                                        @foreach (var o in Model.Oportunidades)
+                                        {
+                                            <option value="@o.Id" data-cliente="@o.ClienteId" selected="@(o.Id == i.OportunidadId)">@o.Titulo · @o.Cliente</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label" for="@formId-moneda">Moneda</label>
+                                    <select id="@formId-moneda" name="Input.Moneda" class="form-select" disabled="@off" data-moneda>
+                                        @foreach (var m in GAS.Admin.Pages.Comercial.Cotizaciones.CotizacionInput.Monedas)
+                                        {
+                                            <option value="@m" selected="@(m == i.Moneda)">@m</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label" for="@formId-fecha">Fecha de emisión</label>
+                                    <input id="@formId-fecha" name="Input.FechaEmision" value="@i.FechaEmision.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-vig">Vigencia (días)</label>
+                                    <input id="@formId-vig" name="Input.VigenciaDias" value="@i.VigenciaDias" type="number" min="1" max="365" class="form-control" disabled="@off" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-xl-4">
+                    <section class="gas-card h-100 gas-totales">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("dollar") Totales</h2></div>
+                        <div class="gas-card__body">
+                            <dl class="gas-totales__lista">
+                                <dt>Subtotal</dt><dd data-total="subtotal">—</dd>
+                                <dt>Descuento</dt><dd data-total="descuento">—</dd>
+                                <dt>
+                                    IVA
+                                    <input name="Input.TasaIvaPorcentaje" value="@i.TasaIvaPorcentaje.ToString("0.##", CultureInfo.InvariantCulture)" type="number" min="0" max="100" step="0.01"
+                                           class="form-control form-control-sm d-inline-block ms-1" style="width: 72px;" aria-label="Tasa de IVA (%)" disabled="@off" data-iva /> %
+                                </dt>
+                                <dd data-total="iva">—</dd>
+                                <dt class="gas-totales__total">Total</dt><dd class="gas-totales__total" data-total="total">—</dd>
+                            </dl>
+                            <div class="d-flex align-items-center justify-content-between mt-3 pt-3" style="border-top: 1px solid var(--gas-border);">
+                                <span class="text-muted small">Margen estimado (interno)</span>
+                                <span data-total="margen"></span>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-12">
+                    <section class="gas-card">
+                        <div class="gas-card__header">
+                            <div>
+                                <h2>@Iconos.Svg("layers") Conceptos</h2>
+                                <p>Al agregar del catálogo se copia su precio; cambiarlo aquí no altera el catálogo.</p>
+                            </div>
+                            @if (!off)
+                            {
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <select class="form-select form-select-sm" style="min-width: 240px;" aria-label="Servicio del catálogo" data-catalogo-select>
+                                        <option value="">Agregar del catálogo…</option>
+                                        @foreach (var g in Model.Catalogo.GroupBy(x => x.Categoria))
+                                        {
+                                            <optgroup label="@Etiquetas.Texto(Enum.Parse<CategoriaComercial>(g.Key))">
+                                                @foreach (var s in g)
+                                                {
+                                                    <option value="@s.Id">@s.Nombre@(s.Precio is null ? "" : " · " + Etiquetas.Dinero(s.Precio, s.Moneda))</option>
+                                                }
+                                            </optgroup>
+                                        }
+                                    </select>
+                                    <button type="button" class="btn btn-sm btn-gas-outline" data-agregar-libre>@Iconos.Svg("plus") Concepto libre</button>
+                                </div>
+                            }
+                        </div>
+                        <div class="gas-table-wrap">
+                            <table class="gas-table gas-lineas">
+                                <thead>
+                                    <tr>
+                                        <th style="min-width: 300px;">Concepto</th>
+                                        <th style="width: 110px;">Cantidad</th>
+                                        <th style="width: 110px;">Unidad</th>
+                                        <th style="width: 140px;">Precio unit.</th>
+                                        <th style="width: 90px;">Desc. %</th>
+                                        <th style="width: 130px;" title="Costo unitario interno, no aparece en el PDF">Costo unit.</th>
+                                        <th style="width: 130px;" class="text-end">Importe</th>
+                                        <th style="width: 44px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody data-lineas>
+                                    @foreach (var l in i.Lineas)
+                                    {
+                                        <partial name="_LineaCotizacion" model="(l, off)" />
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="gas-empty py-4" data-lineas-vacio>@Iconos.Svg("layers") Agrega conceptos del catálogo o libres.</div>
+                        <template data-linea-template>
+                            <partial name="_LineaCotizacion" model="(new GAS.Admin.Pages.Comercial.Cotizaciones.LineaInput(), false)" />
+                        </template>
+                    </section>
+                </div>
+
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("card") Condiciones de pago</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-7">
+                                    <label class="form-label" for="@formId-cond">Forma de pago</label>
+                                    <select id="@formId-cond" name="Input.CondicionPago" class="form-select" disabled="@off" data-condicion>
+                                        @foreach (var cp in Etiquetas.Valores<CondicionPago>())
+                                        {
+                                            <option value="@cp" selected="@(cp == i.CondicionPago)">@Etiquetas.Texto(cp)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-5 @(i.CondicionPago == CondicionPago.AnticipoYFinal ? "" : "d-none")" data-anticipo>
+                                    <label class="form-label" for="@formId-ant">Anticipo (%)</label>
+                                    <input id="@formId-ant" name="Input.AnticipoPorcentaje" value="@i.AnticipoPorcentaje" type="number" min="1" max="99" class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-condiciones">Condiciones (una por línea, aparecen en el PDF)</label>
+                                    <textarea id="@formId-condiciones" name="Input.Condiciones" class="form-control" rows="3" maxlength="4000" disabled="@off">@i.Condiciones</textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("lock") Notas internas</h2></div>
+                        <div class="gas-card__body">
+                            <textarea name="Input.NotasInternas" class="form-control" rows="5" maxlength="2000" disabled="@off"
+                                      placeholder="No aparecen en el PDF ni en el correo">@i.NotasInternas</textarea>
+                        </div>
+                    </section>
+                </div>
+
+                @if (Model.Envios.Count > 0)
+                {
+                    <div class="col-12">
+                        <section class="gas-card">
+                            <div class="gas-card__header"><h2>@Iconos.Svg("mail") Envíos</h2></div>
+                            <ul class="gas-timeline">
+                                @foreach (var e in Model.Envios)
+                                {
+                                    <li>
+                                        <span class="gas-timeline__dot @(e.Exito ? "gas-timeline__dot--success" : "gas-timeline__dot--danger")"></span>
+                                        <div class="gas-timeline__body">
+                                            <strong>@e.Para</strong>
+                                            <span>@e.Asunto · @(e.EnviadoPor ?? "")@(e.Exito ? "" : " · Error: " + e.Error)</span>
+                                        </div>
+                                        <span class="gas-badge gas-badge--plain" title="@Fechas.Formato(e.FechaUtc)">@Fechas.Relativo(e.FechaUtc)</span>
+                                    </li>
+                                }
+                            </ul>
+                        </section>
+                    </div>
+                }
+            </div>
+        </form>
+    </div>
+
+    <div class="modal-footer">
+        @if (!Model.EsNuevo)
+        {
+            <div class="dropup">
+                <button type="button" class="btn btn-gas-outline" data-bs-toggle="dropdown" aria-expanded="false">@Iconos.Svg("lock") Acciones</button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="@Url.Page("/Comercial/Cotizaciones/Index", "Pdf", new { id = Model.Id })" target="_blank" rel="noopener">@Iconos.Svg("note") Ver PDF</a>
+                    @if (Model.Trabajo is not null)
+                    {
+                        <a class="dropdown-item" href="@Url.Page("/Proyectos/Detalle/Index", new { id = Model.Trabajo.Id })">@Iconos.Svg("layers") Abrir trabajo @Model.Trabajo.Titulo</a>
+                    }
+                    else if (Model.Estado == EstadoCotizacion.Aprobada && Model.PuedeCrearTrabajo)
+                    {
+                        <form method="post" asp-page="/Comercial/Cotizaciones/Index" asp-page-handler="CrearTrabajo" asp-route-id="@Model.Id">
+                            <button type="submit" class="dropdown-item">@Iconos.Svg("layers") Crear trabajo en Proyectos</button>
+                        </form>
+                    }
+                    @if (Model.PuedeGestionar && abierta)
+                    {
+                        <button type="button" class="dropdown-item" data-modal-url="@Url.Page("/Comercial/Cotizaciones/Index", "Enviar", new { id = Model.Id, estado = Model.Filtro, q = Model.Q })">
+                            @Iconos.Svg("mail") Enviar por correo
+                        </button>
+                        <div class="dropdown-divider"></div>
+                        @if (!Model.Vencida)
+                        {
+                            @foreach (var tipo in Etiquetas.Valores<TipoTrabajo>())
+                            {
+                                var rutaAprobar = new Dictionary<string, string>(ruta) { ["tipo"] = tipo.ToString() };
+                                <form method="post" asp-page="/Comercial/Cotizaciones/Index" asp-page-handler="Aprobar" asp-all-route-data="rutaAprobar"
+                                      data-confirm-title="¿Aprobar @Model.Folio como @Etiquetas.Texto(tipo).ToLowerInvariant()?"
+                                      data-confirm="La oportunidad se marcará como ganada y, si el cliente era prospecto, pasará a activo."
+                                      data-confirm-ok="Aprobar">
+                                    <button type="submit" class="dropdown-item">@Iconos.Svg("check") Aprobar como @Etiquetas.Texto(tipo).ToLowerInvariant()</button>
+                                </form>
+                            }
+                        }
+                        @if (Model.Estado == EstadoCotizacion.Enviada)
+                        {
+                            <form method="post" asp-page="/Comercial/Cotizaciones/Index" asp-page-handler="NuevaVersion" asp-all-route-data="ruta"
+                                  data-confirm-title="¿Crear una nueva versión?"
+                                  data-confirm="Se copiará como borrador para editarla; esta versión quedará como reemplazada."
+                                  data-confirm-ok="Crear versión">
+                                <button type="submit" class="dropdown-item">@Iconos.Svg("copy") Nueva versión</button>
+                            </form>
+                            <form method="post" asp-page="/Comercial/Cotizaciones/Index" asp-page-handler="Rechazar" asp-all-route-data="ruta"
+                                  data-confirm-title="¿Marcar como rechazada?" data-confirm="El cliente no aceptó esta cotización."
+                                  data-confirm-ok="Marcar rechazada" data-confirm-tone="danger">
+                                <button type="submit" class="dropdown-item">@Iconos.Svg("x") Marcar rechazada</button>
+                            </form>
+                        }
+                        <div class="dropdown-divider"></div>
+                        <form method="post" asp-page="/Comercial/Cotizaciones/Index" asp-page-handler="Cancelar" asp-all-route-data="ruta"
+                              data-confirm-title="¿Cancelar @Model.Folio?" data-confirm="La cotización quedará cancelada y no se podrá aprobar."
+                              data-confirm-ok="Cancelar cotización" data-confirm-tone="danger">
+                            <button type="submit" class="dropdown-item text-danger">@Iconos.Svg("x") Cancelar cotización</button>
+                        </form>
+                    }
+                    else if (Model.PuedeGestionar && Model.Estado == EstadoCotizacion.Rechazada)
+                    {
+                        <form method="post" asp-page="/Comercial/Cotizaciones/Index" asp-page-handler="NuevaVersion" asp-all-route-data="ruta"
+                              data-confirm-title="¿Crear una nueva versión?" data-confirm="Se copiará como borrador para renegociar." data-confirm-ok="Crear versión">
+                            <button type="submit" class="dropdown-item">@Iconos.Svg("copy") Nueva versión</button>
+                        </form>
+                    }
+                    @if (Model.PuedeGestionar && Model.PuedeEliminar)
+                    {
+                        <form method="post" asp-page="/Comercial/Cotizaciones/Index" asp-page-handler="Eliminar" asp-all-route-data="ruta"
+                              data-confirm-title="¿Eliminar el borrador @Model.Folio?" data-confirm="Se eliminará de forma permanente."
+                              data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                            <button type="submit" class="dropdown-item text-danger">@Iconos.Svg("trash") Eliminar borrador</button>
+                        </form>
+                    }
+                </div>
+            </div>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.Editable ? "Cancelar" : "Cerrar")</button>
+            @if (Model.Editable)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">
+                    @if (Model.EsNuevo) { @Iconos.Svg("check") <span>Crear borrador</span> } else { @Iconos.Svg("save") <span>Guardar borrador</span> }
+                </button>
+            }
+        </div>
+    </div>
+</div>

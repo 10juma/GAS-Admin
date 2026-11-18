@@ -1,0 +1,37 @@
+@model GAS.Admin.Pages.Infraestructura.Integraciones.LigaModalVm
+@{
+    var sentry = Model.Tipo == "sentry";
+    var formId = $"form-liga-{Model.Tipo}-{Model.Id}";
+}
+<div data-size="md" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg(sentry ? "bug" : "activity")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@Model.Nombre</h2>
+            <div class="gas-modal__subtitle">@(sentry ? "Proyecto de Sentry" : "Monitor de UptimeRobot")@(Model.Detalle is null ? "" : $" · {Model.Detalle}")</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <form id="@formId" method="post" asp-page="/Infraestructura/Integraciones/Index" asp-page-handler="Ligar" asp-route-tipo="@Model.Tipo" asp-route-id="@Model.Id">
+            <section class="gas-card">
+                <div class="gas-card__body">
+                    <label class="form-label" for="@formId-dest">@(sentry ? "Producto" : "Ambiente que vigila")</label>
+                    <select id="@formId-dest" name="destino" class="form-select">
+                        <option value="">@(sentry ? "Sin producto" : "Sin ambiente")</option>
+                        @foreach (var o in Model.Opciones) { <option value="@o.Id" selected="@(o.Id == Model.Seleccionado)">@o.Nombre</option> }
+                    </select>
+                    <div class="form-text">
+                        @(sentry ? "Los errores de este proyecto se mostrarán bajo ese producto." : "Si el monitor cae, se abre un incidente crítico en ese ambiente y se resuelve solo cuando vuelve.")
+                    </div>
+                </div>
+            </section>
+        </form>
+    </div>
+    <div class="modal-footer">
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") Cancelar</button>
+            <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg("save") Guardar</button>
+        </div>
+    </div>
+</div>

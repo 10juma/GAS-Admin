@@ -1,0 +1,76 @@
+@model GAS.Admin.Pages.Finanzas.Movimientos.ConfirmarModalVm
+@using System.Globalization
+@{
+    var m = Model.Movimiento;
+    var i = Model.Input;
+    var ingreso = m.EsIngreso;
+    var formId = $"form-confirmar-{m.Id}";
+    var inv = CultureInfo.InvariantCulture;
+}
+<div data-size="md" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg("check")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@(ingreso ? "Registrar cobro" : "Registrar pago")</h2>
+            <div class="gas-modal__subtitle">@m.Concepto</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Finanzas/Movimientos/Index" asp-page-handler="Confirmar" asp-route-id="@m.Id"
+              data-movimiento data-mov-fijo data-subtotal="@m.Subtotal.ToString(inv)" data-iva="@m.TasaIva.ToString(inv)" data-moneda="@m.Moneda">
+            <input type="hidden" name="volver" value="@Model.Volver" />
+            <section class="gas-card">
+                <div class="gas-card__body">
+                    <dl class="gas-totales__lista mb-3">
+                        <dt>Subtotal</dt><dd>@Etiquetas.Dinero(m.Subtotal, m.Moneda)</dd>
+                        <dt>IVA</dt><dd>@Etiquetas.Dinero(m.Iva, m.Moneda)</dd>
+                        <dt class="gas-totales__total">Total</dt><dd class="gas-totales__total">@Etiquetas.Dinero(m.Total, m.Moneda)</dd>
+                        @if (m.Moneda != "MXN")
+                        {
+                            <dt>Equivalente en pesos</dt><dd data-mov-out="mxn">—</dd>
+                        }
+                    </dl>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="@formId-fecha">Fecha de @(ingreso ? "cobro" : "pago")</label>
+                            <input id="@formId-fecha" name="Input.FechaPago" value="@i.FechaPago.ToString("yyyy-MM-dd")" type="date" class="form-control" />
+                        </div>
+                        @if (m.Moneda != "MXN")
+                        {
+                            <div class="col-md-6">
+                                <label class="form-label" for="@formId-tc">Tipo de cambio del día</label>
+                                <input id="@formId-tc" name="Input.TipoCambio" value="@i.TipoCambio?.ToString(inv)" type="number" min="0" step="0.0001" class="form-control" data-mov-tc-input />
+                            </div>
+                        }
+                        <div class="col-md-6">
+                            <label class="form-label" for="@formId-cta">Cuenta</label>
+                            <select id="@formId-cta" name="Input.CuentaId" class="form-select">
+                                <option value="">Sin cuenta</option>
+                                @foreach (var c in Model.Cuentas) { <option value="@c.Id" selected="@(c.Id == i.CuentaId)">@c.Nombre</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="@formId-ref">Referencia</label>
+                            <input id="@formId-ref" name="Input.Referencia" value="@i.Referencia" class="form-control" maxlength="100" placeholder="Folio, transferencia…" />
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </form>
+    </div>
+
+    <div class="modal-footer">
+        <form method="post" asp-page="/Finanzas/Movimientos/Index" asp-page-handler="Estado" asp-route-id="@m.Id" asp-route-estado="@EstadoMovimiento.Cancelado"
+              data-confirm-title="¿Cancelar este movimiento?" data-confirm="Ya no se esperará este @(ingreso ? "cobro" : "pago"). Queda en el historial como cancelado."
+              data-confirm-ok="Cancelar movimiento" data-confirm-tone="danger">
+            <input type="hidden" name="volver" value="@Model.Volver" />
+            <button type="submit" class="btn btn-gas-outline">@Iconos.Svg("x") Ya no aplica</button>
+        </form>
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">Cerrar</button>
+            <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg("check") @(ingreso ? "Registrar cobro" : "Registrar pago")</button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,292 @@
+@page
+@model GAS.Admin.Pages.Finanzas.Suscripciones.IndexModel
+@using GAS.Admin.Services.Stripe
+@using System.Globalization
+@{
+    ViewData["Title"] = "Suscripciones SaaS";
+    ViewData["Seccion"] = "Finanzas";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var seccion = Model.Seccion is "fallidas" or "suscriptores" ? Model.Seccion : "suscripciones";
+    var estado = Model.Estado ?? "vigentes";
+    var volver = Model.VolverActual;
+    string D(decimal v) => Etiquetas.Dinero(v);
+    var maxMrr = Model.Tendencia.Select(t => t.Mrr).DefaultIfEmpty(0).Max();
+    Dictionary<string, string> Ruta(string? sec, string? est = null) => new Dictionary<string, string?>
+        { ["producto"] = Model.Producto?.ToString(), ["seccion"] = sec, ["estado"] = est }
+        .Where(x => !string.IsNullOrEmpty(x.Value)).ToDictionary(x => x.Key, x => x.Value!);
+    var sinCuentas = Model.Cuentas.Count == 0;
+    var ultima = Model.Cuentas.Where(c => c.UltimaSincronizacionUtc is not null).Select(c => c.UltimaSincronizacionUtc).DefaultIfEmpty(null).Min();
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Suscripciones SaaS</h1>
+        <p>MRR, suscripciones y pagos fallidos de los productos, leídos de Stripe (la fuente de verdad). Montos en pesos; cada suscripción conserva su moneda.</p>
+    </div>
+    <div class="gas-page-header__actions">
+        @if (Model.PuedeGestionar)
+        {
+            <a asp-page="/Finanzas/Configuracion/Index" asp-route-vista="stripe" class="btn btn-gas-outline">@Iconos.Svg("card") Cuentas de Stripe</a>
+            @if (!sinCuentas)
+            {
+                <form method="post" asp-page-handler="Sincronizar" class="d-inline">
+                    <input type="hidden" name="volver" value="@volver" />
+                    <button type="submit" class="btn btn-gas">@Iconos.Svg("refresh") Sincronizar ahora</button>
+                </form>
+            }
+        }
+    </div>
+</div>
+
+@if (sinCuentas)
+{
+    <div class="gas-card">
+        <div class="gas-empty">
+            @Iconos.Svg("card") Aún no hay productos conectados a Stripe.
+            <span class="small">Conecta cada producto con una clave restringida de solo lectura en Finanzas › Configuración › Stripe.</span>
+            @if (Model.PuedeGestionar) { <a asp-page="/Finanzas/Configuracion/Index" asp-route-vista="stripe" class="btn btn-sm btn-gas mt-2">@Iconos.Svg("plus") Conectar Stripe</a> }
+        </div>
+    </div>
+    return;
+}
+
+@foreach (var c in Model.Cuentas.Where(c => c.UltimoError is not null))
+{
+    <div class="gas-callout">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div class="gas-callout__text"><strong>@c.Producto.Nombre no se pudo sincronizar</strong>@c.UltimoError</div>
+    </div>
+}
+@if (Model.FaltaTipoCambio)
+{
+    <div class="gas-callout">
+        <span class="gas-stat__icon">@Iconos.Svg("swap")</span>
+        <div class="gas-callout__text"><strong>Hay suscripciones en dólares sin tipo de cambio</strong>No se están sumando al MRR en pesos. Registra el tipo de cambio del día.</div>
+        <a asp-page="/Finanzas/Configuracion/Index" asp-route-vista="tipos" class="btn btn-sm btn-gas-outline">@Iconos.Svg("arrow-right") Tipos de cambio</a>
+    </div>
+}
+
+<div class="gas-toolbar px-0 pt-0">
+    <nav class="gas-chips" aria-label="Producto">
+        <a asp-page="Index" asp-route-seccion="@Model.Seccion" class="gas-chip gas-chip--dark @(Model.Producto is null ? "is-active" : "")">Todos los productos</a>
+        @foreach (var c in Model.Cuentas)
+        {
+            <a asp-page="Index" asp-route-producto="@c.ProductoId" asp-route-seccion="@Model.Seccion" class="gas-chip gas-chip--violet @(Model.Producto == c.ProductoId ? "is-active" : "")">@c.Producto.Nombre</a>
+        }
+    </nav>
+    <span class="small text-muted">@(ultima is null ? "Sin sincronizar todavía" : $"Sincronizado {Fechas.Relativo(ultima).ToLowerInvariant()}")</span>
+</div>
+
+<div class="gas-grid gas-grid--4 mb-3">
+    <div class="gas-card gas-stat gas-stat--violet">
+        <span class="gas-stat__icon">@Iconos.Svg("refresh")</span>
+        <div><div class="gas-stat__label">MRR de Stripe</div><div class="gas-stat__value gas-stat__value--money">@D(Model.Mrr)</div><div class="gas-stat__hint">ARR @D(Model.Mrr * 12) · sin IVA ni descuentos</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--success">
+        <span class="gas-stat__icon">@Iconos.Svg("users")</span>
+        <div><div class="gas-stat__label">Suscripciones que pagan</div><div class="gas-stat__value">@(Model.Activas + Model.Atrasadas)</div><div class="gas-stat__hint">@Model.EnPrueba en prueba · ARPU @(Model.Arpu is null ? "—" : D(Model.Arpu.Value))</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("trend")</span>
+        <div><div class="gas-stat__label">Este mes</div><div class="gas-stat__value">+@Model.Nuevas / −@Model.Canceladas</div><div class="gas-stat__hint">nuevas / canceladas · churn @(Model.Churn is null ? "—" : $"{Model.Churn.Value * 100:0.#}%")</div></div>
+    </div>
+    <a asp-page="Index" asp-all-route-data="@Ruta("fallidas")" class="gas-card gas-stat @(Model.FallidasTotal > 0 ? "gas-stat--danger" : "gas-stat--muted") text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div><div class="gas-stat__label">Pagos fallidos</div><div class="gas-stat__value">@Model.FallidasTotal</div><div class="gas-stat__hint">@(Model.FallidasTotal > 0 ? $"{D(Model.MontoFallido)} por recuperar · {Model.Atrasadas} atrasada(s)" : "sin cobros pendientes")</div></div>
+    </a>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-7">
+        <section class="gas-card h-100">
+            <div class="gas-card__header"><div><h2>@Iconos.Svg("activity") MRR por producto</h2><p>Activas y con pago atrasado cuentan; las de prueba no.</p></div></div>
+            <div class="gas-table-wrap">
+                <table class="gas-table">
+                    <thead><tr><th>Producto</th><th class="text-end">Activas</th><th class="text-end">En prueba</th><th class="text-end">Atrasadas</th><th class="text-end">MRR</th><th class="text-end">ARPU</th></tr></thead>
+                    <tbody>
+                        @foreach (var p in Model.PorProducto.OrderByDescending(p => p.Mrr))
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@p.Producto</strong>
+                                    @if (p.Cuenta.ModoPrueba) { <span class="gas-badge gas-badge--info ms-1">Prueba</span> }
+                                    <div class="small text-muted">@(p.Cuenta.UltimaSincronizacionUtc is null ? "sin sincronizar" : Fechas.Relativo(p.Cuenta.UltimaSincronizacionUtc))</div>
+                                </td>
+                                <td class="text-end">@p.Activas</td>
+                                <td class="text-end">@p.EnPrueba</td>
+                                <td class="text-end @(p.Atrasadas > 0 ? "text-danger fw-semibold" : "")">@p.Atrasadas</td>
+                                <td class="text-end gas-num fw-semibold">@D(p.Mrr)</td>
+                                <td class="text-end gas-num">@(p.Arpu is null ? "—" : D(p.Arpu.Value))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+    <div class="col-xl-5">
+        <section class="gas-card h-100">
+            <div class="gas-card__header"><div><h2>@Iconos.Svg("trend") Tendencia del MRR</h2><p>Una foto por día de sincronización, últimos 90 días.</p></div></div>
+            <div class="gas-card__body">
+                @if (Model.Tendencia.Count < 2)
+                {
+                    <div class="gas-empty py-3">@Iconos.Svg("trend") La tendencia aparece después de sincronizar en días distintos.</div>
+                }
+                else
+                {
+                    <div class="gas-barras" role="img" aria-label="MRR diario">
+                        @foreach (var t in Model.Tendencia)
+                        {
+                            var alto = maxMrr <= 0 ? 0 : Math.Max(2, Math.Round(t.Mrr / maxMrr * 100, 1));
+                            <span style="height: @alto.ToString(CultureInfo.InvariantCulture)%" title="@t.Fecha.ToString("dd/MM/yyyy") · @D(t.Mrr)"></span>
+                        }
+                    </div>
+                    <div class="gas-barras__eje"><span>@Model.Tendencia[0].Fecha.ToString("dd/MM")</span><span>@D(Model.Tendencia[^1].Mrr)</span><span>@Model.Tendencia[^1].Fecha.ToString("dd/MM")</span></div>
+                }
+            </div>
+        </section>
+    </div>
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Sección">
+            <a asp-page="Index" asp-all-route-data="@Ruta(null)" class="gas-chip gas-chip--success @(seccion == "suscripciones" ? "is-active" : "")">@Iconos.Svg("refresh") Suscripciones</a>
+            <a asp-page="Index" asp-all-route-data="@Ruta("fallidas")" class="gas-chip gas-chip--danger @(seccion == "fallidas" ? "is-active" : "")">@Iconos.Svg("alert") Pagos fallidos <span class="gas-chip__count">@Model.FallidasTotal</span></a>
+            <a asp-page="Index" asp-all-route-data="@Ruta("suscriptores")" class="gas-chip gas-chip--info @(seccion == "suscriptores" ? "is-active" : "")">@Iconos.Svg("users") Suscriptores</a>
+        </nav>
+        @if (seccion != "fallidas")
+        {
+            <form method="get" class="gas-filters">
+                @foreach (var (k, v) in Ruta(Model.Seccion, Model.Estado)) { <input type="hidden" name="@k" value="@v" /> }
+                <div class="gas-input-icon">
+                    @Iconos.Svg("search")
+                    <input type="search" name="buscar" value="@Model.Buscar" class="form-control form-control-sm" placeholder="@(seccion == "suscriptores" ? "Nombre o correo…" : "Plan, nombre o correo…")" aria-label="Buscar" />
+                </div>
+            </form>
+        }
+    </div>
+
+    @if (seccion == "suscripciones")
+    {
+        <div class="px-3 pb-2">
+            <nav class="gas-chips" aria-label="Estado">
+                @foreach (var (clave, texto, tono) in new[] { ("vigentes", "Vigentes", "gas-chip--success"), ("prueba", "En prueba", "gas-chip--info"), ("atrasadas", "Atrasadas", "gas-chip--danger"), ("canceladas", "Canceladas", ""), ("todas", "Todas", "gas-chip--dark") })
+                {
+                    <a asp-page="Index" asp-all-route-data="@Ruta(null, clave == "vigentes" ? null : clave)" class="gas-chip @tono @(estado == clave ? "is-active" : "")">@texto <span class="gas-chip__count">@Model.Conteos.GetValueOrDefault(clave)</span></a>
+                }
+            </nav>
+        </div>
+        @if (Model.Suscripciones.Count == 0)
+        {
+            <div class="gas-empty">@Iconos.Svg("refresh") No hay suscripciones en esta vista.</div>
+        }
+        else
+        {
+            <div class="gas-table-wrap">
+                <table class="gas-table">
+                    <thead><tr><th>Suscriptor</th><th>Plan</th><th class="text-end">Al mes</th><th>Desde</th><th>Periodo actual</th><th>Estado</th></tr></thead>
+                    <tbody>
+                        @foreach (var s in Model.Suscripciones)
+                        {
+                            <tr>
+                                <td>
+                                    @if (s.Suscriptor is not null)
+                                    {
+                                        <a href="#" class="text-decoration-none" data-modal-url="@Url.Page("Index", "Suscriptor", new { id = s.SuscriptorId, volver })"><strong>@s.Suscriptor.Visible</strong></a>
+                                        <div class="small text-muted">@(s.Suscriptor.Nombre is not null ? s.Suscriptor.Email : null) @(Model.Producto is null ? $"· {s.Cuenta.Producto.Nombre}" : "")</div>
+                                    }
+                                    else { <span class="text-muted">—</span> }
+                                </td>
+                                <td>@(s.Plan ?? "—")<div class="small text-muted">@(s.Intervalo switch { "year" => "anual", "month" => "mensual", "week" => "semanal", "day" => "diario", _ => "" })@(s.IntervaloCantidad > 1 ? $" ×{s.IntervaloCantidad}" : "")@(s.Cantidad > 1 ? $" · {s.Cantidad} unidades" : "")</div></td>
+                                <td class="text-end gas-num fw-semibold">@Etiquetas.Dinero(s.MontoMensual, s.Moneda)</td>
+                                <td class="text-nowrap">@(s.InicioUtc is null ? "—" : Fechas.ALocal(s.InicioUtc.Value).ToString("dd/MM/yyyy"))</td>
+                                <td class="text-nowrap">
+                                    @if (s.Estado == "trialing" && s.PruebaHastaUtc is not null) { <span>prueba hasta @Fechas.ALocal(s.PruebaHastaUtc.Value).ToString("dd/MM/yyyy")</span> }
+                                    else if (s.PeriodoFinUtc is not null) { <span>@(s.CancelarAlFinal ? "termina" : "renueva") @Fechas.ALocal(s.PeriodoFinUtc.Value).ToString("dd/MM/yyyy")</span> }
+                                    else { <span class="text-muted">—</span> }
+                                </td>
+                                <td>
+                                    <span class="gas-badge @ServicioStripe.TonoEstado(s.Estado)">@ServicioStripe.TextoEstado(s.Estado)</span>
+                                    @if (s.CancelarAlFinal && s.Estado != "canceled") { <span class="gas-badge gas-badge--warning">Cancela al final</span> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    else if (seccion == "fallidas")
+    {
+        @if (Model.Fallidas.Count == 0)
+        {
+            <div class="gas-empty">@Iconos.Svg("check") Sin pagos fallidos. Stripe está cobrando sin problemas.</div>
+        }
+        else
+        {
+            <div class="gas-table-wrap">
+                <table class="gas-table">
+                    <thead><tr><th>Factura</th><th>Suscriptor</th><th class="text-end">Pendiente</th><th>Intentos</th><th>Próximo intento</th><th>Estado</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                        @foreach (var f in Model.Fallidas)
+                        {
+                            <tr>
+                                <td><strong>@(f.Numero ?? f.StripeId)</strong><div class="small text-muted">@Fechas.ALocal(f.FechaUtc).ToString("dd/MM/yyyy") · @f.Cuenta.Producto.Nombre</div></td>
+                                <td>
+                                    @if (f.Suscriptor is not null) { <a href="#" class="text-decoration-none" data-modal-url="@Url.Page("Index", "Suscriptor", new { id = f.SuscriptorId, volver })">@f.Suscriptor.Visible</a> }
+                                    <div class="small text-muted">@f.Suscripcion?.Plan</div>
+                                </td>
+                                <td class="text-end gas-num fw-semibold text-danger">@Etiquetas.Dinero(f.Total - f.Pagado, f.Moneda)</td>
+                                <td>@f.Intentos</td>
+                                <td>@(f.ProximoIntentoUtc is null ? "—" : Fechas.Formato(f.ProximoIntentoUtc))</td>
+                                <td><span class="gas-badge @ServicioStripe.TonoEstado(f.Estado)">@ServicioStripe.TextoEstado(f.Estado)</span></td>
+                                <td class="text-end">@if (f.Url is not null) { <a href="@f.Url" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-gas-outline">@Iconos.Svg("external") Ver factura</a> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="gas-pager">Stripe reintenta el cobro automáticamente según su configuración de reintentos. Para gestionar el cobro, entra al panel de Stripe del producto.</div>
+        }
+    }
+    else
+    {
+        @if (Model.Suscriptores.Count == 0)
+        {
+            <div class="gas-empty">@Iconos.Svg("users") No hay suscriptores en esta vista.</div>
+        }
+        else
+        {
+            <div class="gas-table-wrap">
+                <table class="gas-table">
+                    <thead><tr><th>Suscriptor</th><th>Producto</th><th class="text-end">Vigentes</th><th class="text-end">MRR</th><th>Cliente de GAS</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                        @foreach (var (s, vigentes, mrr, moneda, cliente) in Model.Suscriptores)
+                        {
+                            <tr>
+                                <td><strong>@s.Visible</strong><div class="small text-muted">@(s.Nombre is not null ? s.Email : null)</div></td>
+                                <td>@s.Cuenta.Producto.Nombre</td>
+                                <td class="text-end">@vigentes</td>
+                                <td class="text-end gas-num">@Etiquetas.Dinero(mrr, moneda)</td>
+                                <td>@if (cliente is not null) { <span class="gas-badge gas-badge--info">@Iconos.Svg("building") @cliente</span> } else { <span class="text-muted">—</span> }</td>
+                                <td class="text-end"><button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Suscriptor", new { id = s.Id, volver })">@Iconos.Svg("eye") Ver</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    @if (Model.HayMas)
+    {
+        <div class="gas-pager">Se muestran los primeros 300. Usa la búsqueda o el filtro de producto para acotar.</div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_SuscriptorModal" model="Model.Modal" />
+    }
+}

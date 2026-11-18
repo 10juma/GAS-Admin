@@ -1,0 +1,134 @@
+@model GAS.Admin.Pages.Infraestructura.Incidentes.IncidenteModalVm
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-inc-nuevo" : $"form-inc-{Model.Id}";
+    var i = Model.Input;
+    var responsable = ("Input.ResponsableId", $"{formId}-resp", i.ResponsableId, Model.Responsables, off);
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon gas-modal__icon--warning">@Iconos.Svg("alert")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@(Model.EsNuevo ? "Registrar incidente" : $"{Model.Folio} · {i.Titulo}")</h2>
+            @if (Model.EsNuevo)
+            {
+                <div class="gas-modal__subtitle">Crítico marca el ambiente como caído; alto o medio, como degradado. Al resolverlo vuelve a operativo.</div>
+            }
+            else
+            {
+                <div class="gas-badges mt-2">
+                    <span class="gas-badge @Etiquetas.Badge(i.Severidad)">@Etiquetas.Texto(i.Severidad)</span>
+                    <span class="gas-badge @Etiquetas.Badge(i.Estado)">@Etiquetas.Texto(i.Estado)</span>
+                    <partial name="_Trazabilidad" model="(Model.CreadoUtc, Model.CreadoPor, Model.ModificadoUtc, Model.ModificadoPor)" />
+                </div>
+            }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Infraestructura/Incidentes/Index" asp-page-handler="Guardar" asp-route-id="@Model.Id">
+            <input type="hidden" name="volver" value="@Model.Volver" />
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Qué pasó</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-titulo">Título</label>
+                                    <input id="@formId-titulo" name="Input.Titulo" value="@i.Titulo" class="form-control" maxlength="200" disabled="@off" placeholder="Ej. La API de pagos responde con error 500" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-prod">Producto</label>
+                                    <select id="@formId-prod" name="Input.ProductoId" class="form-select" disabled="@off" data-filtra="ambiente">
+                                        <option value="">General</option>
+                                        @foreach (var p in Model.Productos) { <option value="@p.Id" selected="@(p.Id == i.ProductoId)">@p.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-amb">Ambiente</label>
+                                    <select id="@formId-amb" name="Input.AmbienteId" class="form-select" disabled="@off" data-filtrado="ambiente">
+                                        <option value="">Sin ambiente</option>
+                                        @foreach (var a in Model.Ambientes) { <option value="@a.Id" data-padre="@a.Extra" selected="@(a.Id == i.AmbienteId)">@a.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-imp">Impacto</label>
+                                    <textarea id="@formId-imp" name="Input.Impacto" class="form-control" rows="2" maxlength="2000" disabled="@off" placeholder="¿A quién afectó y cómo?">@i.Impacto</textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("clock") Seguimiento</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-sev">Severidad</label>
+                                    <select id="@formId-sev" name="Input.Severidad" class="form-select" disabled="@off">
+                                        @foreach (var s in Etiquetas.Valores<SeveridadIncidente>()) { <option value="@s" selected="@(s == i.Severidad)">@Etiquetas.Texto(s)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-estado">Estado</label>
+                                    <select id="@formId-estado" name="Input.Estado" class="form-select" disabled="@off">
+                                        @foreach (var s in Etiquetas.Valores<EstadoIncidente>()) { <option value="@s" selected="@(s == i.Estado)">@Etiquetas.Texto(s)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-ini">Inicio</label>
+                                    <input id="@formId-ini" name="Input.Inicio" value="@i.Inicio.ToString("yyyy-MM-ddTHH:mm")" type="datetime-local" class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-fin">Resuelto</label>
+                                    <input id="@formId-fin" name="Input.Fin" value="@i.Fin?.ToString("yyyy-MM-ddTHH:mm")" type="datetime-local" class="form-control" disabled="@off" />
+                                    <div class="form-text">Se llena al marcarlo Resuelto.</div>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-resp">Responsable</label>
+                                    <partial name="_SelectResponsable" model="responsable" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("search") Causa</h2></div>
+                        <div class="gas-card__body">
+                            <textarea name="Input.Causa" class="form-control" rows="4" maxlength="2000" disabled="@off" placeholder="Causa raíz (cuando se conozca)">@i.Causa</textarea>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("check") Acciones</h2></div>
+                        <div class="gas-card__body">
+                            <textarea name="Input.Acciones" class="form-control" rows="4" maxlength="4000" disabled="@off" placeholder="Qué se hizo para mitigarlo y qué se hará para que no se repita">@i.Acciones</textarea>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <form method="post" asp-page="/Infraestructura/Incidentes/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id"
+                  data-confirm-title="¿Eliminar @Model.Folio?" data-confirm="Se perderá su historial. Normalmente es mejor marcarlo como Resuelto."
+                  data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                <input type="hidden" name="volver" value="@Model.Volver" />
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Eliminar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg(Model.EsNuevo ? "check" : "save") @(Model.EsNuevo ? "Registrar" : "Guardar cambios")</button>
+            }
+        </div>
+    </div>
+</div>

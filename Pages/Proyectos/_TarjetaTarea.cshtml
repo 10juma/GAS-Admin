@@ -1,0 +1,37 @@
+@* Tarjeta de tarea para los tableros Kanban. *@
+@model (GAS.Admin.Models.Entities.Tarea Tarea, string? Folio, string? Responsable, string? Color, decimal Horas, int Comentarios, bool Editable, string Volver)
+@{
+    var t = Model.Tarea;
+    var hoy = GAS.Admin.Services.Proyectos.ServicioTrabajos.Hoy;
+    var vencida = t.Vencida(hoy);
+}
+<article class="gas-kanban__card" draggable="@(Model.Editable ? "true" : "false")" data-id="@t.Id" tabindex="0"
+         data-modal-url="@Url.Page("/Proyectos/Tareas/Index", "Editar", new { id = t.Id, volver = Model.Volver })">
+    <strong class="gas-kanban__title">@t.Titulo</strong>
+    @if (Model.Folio is not null)
+    {
+        <span class="gas-kanban__client">@Iconos.Svg("layers") @Model.Folio</span>
+    }
+    <div class="gas-badges">
+        @if (t.Prioridad is Prioridad.Alta or Prioridad.Urgente) { <span class="gas-badge @Etiquetas.Badge(t.Prioridad)">@Etiquetas.Texto(t.Prioridad)</span> }
+        @if (t.FechaVencimiento is not null && t.Estado != EstadoTarea.Terminado)
+        {
+            <span class="gas-badge @(vencida ? "gas-badge--danger" : "gas-badge--plain")">@Iconos.Svg("calendar") @t.FechaVencimiento.Value.ToString("dd/MM")</span>
+        }
+        @if (Model.Horas > 0 || t.HorasEstimadas is not null)
+        {
+            <span class="gas-badge gas-badge--plain">@Iconos.Svg("clock") @Model.Horas.ToString("0.#")@(t.HorasEstimadas is null ? "" : "/" + t.HorasEstimadas.Value.ToString("0.#")) h</span>
+        }
+        @if (Model.Comentarios > 0) { <span class="gas-badge gas-badge--plain">@Iconos.Svg("mail") @Model.Comentarios</span> }
+    </div>
+    <footer class="gas-kanban__foot">
+        @if (Model.Responsable is not null)
+        {
+            <span class="gas-avatar gas-avatar--sm gas-avatar--@(Model.Color ?? "c1")" title="@Model.Responsable">@Avatar.Iniciales(Model.Responsable)</span>
+        }
+        else
+        {
+            <span class="gas-badge gas-badge--plain">Sin asignar</span>
+        }
+    </footer>
+</article>

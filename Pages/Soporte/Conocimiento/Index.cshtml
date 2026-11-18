@@ -1,0 +1,74 @@
+@page
+@model GAS.Admin.Pages.Soporte.Conocimiento.IndexModel
+@using GAS.Admin.Services.Soporte
+@{
+    ViewData["Title"] = "Base de conocimientos";
+    ViewData["Seccion"] = "Atención al cliente";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Base de conocimientos</h1>
+        <p>Soluciones y guías para responder más rápido. Se insertan en las respuestas de los tickets; los publicables podrán mostrarse a clientes después.</p>
+    </div>
+    @if (Model.PuedeGestionar) { <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Nuevo artículo</button> }
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Categoría">
+            <a asp-page="Index" asp-route-producto="@Model.Producto" asp-route-buscar="@Model.Buscar" class="gas-chip gas-chip--dark @(Model.Categoria is null ? "is-active" : "")">Todas <span class="gas-chip__count">@Model.Total</span></a>
+            @foreach (var c in Etiquetas.Valores<CategoriaTicket>())
+            {
+                <a asp-page="Index" asp-route-categoria="@c" asp-route-producto="@Model.Producto" asp-route-buscar="@Model.Buscar" class="gas-chip gas-chip--info @(Model.Categoria == c.ToString() ? "is-active" : "")">@ServicioSoporte.TextoCategoria(c) <span class="gas-chip__count">@Model.PorCategoria.GetValueOrDefault(c)</span></a>
+            }
+        </nav>
+        <form method="get" class="gas-filters">
+            @if (Model.Categoria is not null) { <input type="hidden" name="categoria" value="@Model.Categoria" /> }
+            <select name="producto" class="form-select form-select-sm" aria-label="Producto" style="max-width: 190px;" onchange="this.form.requestSubmit()">
+                <option value="">Todos los productos</option>
+                @foreach (var p in Model.Productos) { <option value="@p.Id" selected="@(p.Id == Model.Producto)">@p.Nombre</option> }
+            </select>
+            <div class="gas-input-icon">
+                @Iconos.Svg("search")
+                <input type="search" name="buscar" value="@Model.Buscar" class="form-control form-control-sm" placeholder="Buscar en títulos y contenido…" aria-label="Buscar" />
+            </div>
+        </form>
+    </div>
+    @if (Model.Articulos.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("note") No hay artículos aquí. <span class="small">Crea el primero o conviértelo desde un ticket resuelto ("Crear artículo con esta solución").</span></div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Artículo</th><th>Producto</th><th>Categoría</th><th class="text-end">Usos</th><th>Visibilidad</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var (a, producto) in Model.Articulos)
+                    {
+                        <tr>
+                            <td style="max-width: 520px;">
+                                <strong>@a.Titulo</strong>
+                                <div class="small text-muted" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@(a.Contenido.Length > 140 ? a.Contenido[..140] + "…" : a.Contenido)</div>
+                            </td>
+                            <td>@(producto ?? "General")</td>
+                            <td>@ServicioSoporte.TextoCategoria(a.Categoria)</td>
+                            <td class="text-end">@a.Usos</td>
+                            <td>@if (a.Publicable) { <span class="gas-badge gas-badge--success">@Iconos.Svg("globe") Publicable</span> } else { <span class="gas-badge gas-badge--plain">@Iconos.Svg("lock") Interno</span> }</td>
+                            <td class="text-end"><button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = a.Id })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Editar" : "Ver")</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_ArticuloModal" model="Model.Modal" />
+    }
+}

@@ -1,0 +1,62 @@
+@page
+@model GAS.Admin.Pages.Proyectos.Tareas.IndexModel
+@{
+    ViewData["Title"] = "Tablero de tareas";
+    ViewData["Seccion"] = "Proyectos";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var volver = Url.Page("Index", new { trabajo = Model.Trabajo, responsable = Model.Responsable, departamento = Model.Departamento, vista = Model.Vista })!;
+}
+
+@Html.AntiForgeryToken()
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Tablero de tareas</h1>
+        <p>Todas las tareas de GAS. Arrastra para cambiar de estado; en Terminado se ven las de los últimos 30 días.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo", new { trabajoId = Model.Trabajo, volver })">@Iconos.Svg("plus") Nueva tarea</button>
+    }
+</div>
+
+<div class="gas-card mb-3">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Vista">
+            <a asp-page="Index" class="gas-chip gas-chip--dark @(string.IsNullOrEmpty(Model.Vista) && Model.Trabajo is null && Model.Responsable is null && Model.Departamento is null ? "is-active" : "")">Todas <span class="gas-chip__count">@Model.Total</span></a>
+            @if (Model.MiPersonaId is not null)
+            {
+                <a asp-page="Index" asp-route-vista="mias" class="gas-chip gas-chip--info @(Model.Vista == "mias" ? "is-active" : "")">@Iconos.Svg("users") Mías</a>
+            }
+            <a asp-page="Index" asp-route-vista="sueltas" class="gas-chip gas-chip--violet @(Model.Vista == "sueltas" ? "is-active" : "")">Sin trabajo</a>
+            @if (Model.Vencidas > 0) { <span class="gas-chip gas-chip--danger" style="pointer-events: none;">@Iconos.Svg("alert") Vencidas <span class="gas-chip__count">@Model.Vencidas</span></span> }
+        </nav>
+        <form method="get" class="gas-filters">
+            <select name="trabajo" class="form-select form-select-sm" aria-label="Trabajo" onchange="this.form.requestSubmit()" style="min-width: 220px;">
+                <option value="">Cualquier trabajo</option>
+                @foreach (var t in Model.TrabajosActivos) { <option value="@t.Id" selected="@(t.Id == Model.Trabajo)">@t.Folio · @t.Nombre</option> }
+            </select>
+            <select name="responsable" class="form-select form-select-sm" aria-label="Responsable" onchange="this.form.requestSubmit()" style="min-width: 180px;">
+                <option value="">Cualquier responsable</option>
+                @foreach (var p in Model.Personas) { <option value="@p.Id" selected="@(p.Id == Model.Responsable)">@p.Nombre</option> }
+            </select>
+            <select name="departamento" class="form-select form-select-sm" aria-label="Departamento" onchange="this.form.requestSubmit()" style="min-width: 180px;">
+                <option value="">Cualquier departamento</option>
+                @foreach (var d in Model.Departamentos) { <option value="@d.Id" selected="@(d.Id == Model.Departamento)">@d.Nombre</option> }
+            </select>
+        </form>
+    </div>
+</div>
+
+<partial name="/Pages/Proyectos/_TableroTareas.cshtml" model="(Model.Columnas, Model.PuedeGestionar, volver, (int?)Model.Trabajo)" />
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_TareaModal" model="Model.Modal" />
+    }
+}
+
+@section Scripts {
+    <script src="~/js/kanban.js" asp-append-version="true"></script>
+}

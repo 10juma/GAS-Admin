@@ -1,0 +1,145 @@
+@page
+@model GAS.Admin.Pages.Organizacion.Configuracion.IndexModel
+@using GAS.Admin.Services.Configuracion
+@{
+    ViewData["Title"] = "Configuración de GAS-Admin";
+    ViewData["Seccion"] = "Organización";
+    var volver = Url.Page("Index");
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Configuración de GAS-Admin</h1>
+        <p>Llaves y ajustes con los que funciona GAS-Admin. Se guardan cifradas y solo un Admin puede verlas o cambiarlas.</p>
+    </div>
+</div>
+
+@if (!Model.LlaveMaestra)
+{
+    <div class="gas-callout">
+        <div class="gas-callout__text">
+            <strong>Falta la llave maestra del servidor</strong>
+            No se pueden guardar ni leer las llaves capturadas aquí. @Model.OrigenLlave
+        </div>
+    </div>
+}
+else if (Model.Ilegibles.Count > 0)
+{
+    <div class="gas-callout">
+        <div class="gas-callout__text">
+            <strong>@Model.Ilegibles.Count llave(s) no se pueden leer</strong>
+            Se guardaron con otra llave maestra. Vuelve a capturarlas: @string.Join(", ", Model.Ilegibles)
+        </div>
+    </div>
+}
+
+<div class="gas-grid gas-grid--3 mb-4">
+    @foreach (var g in CatalogoLlaves.DeGasAdmin)
+    {
+        <section class="gas-card">
+            <div class="gas-card__header">
+                <div>
+                    <h2>@Iconos.Svg(g.Icono) @g.Titulo</h2>
+                    <p>@g.Descripcion</p>
+                </div>
+                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Llaves", new { grupo = g.Id, volver })">@Iconos.Svg("pencil") Editar</button>
+            </div>
+            <div class="gas-card__body">
+                <dl class="gas-meta">
+                    @foreach (var c in g.Campos)
+                    {
+                        var e = Model.Estados[c.Clave];
+                        <dt>@c.Etiqueta</dt>
+                        <dd class="d-flex flex-wrap align-items-center gap-2">
+                            @if (!c.EsSecreto && e.Configurada) { <span class="text-break">@e.Valor</span> }
+                            else { <partial name="_EstadoLlave" model="e" /> }
+                        </dd>
+                    }
+                    @if (g.Id == "correo")
+                    {
+                        <dt>Vista previa</dt>
+                        <dd class="d-flex flex-wrap gap-1">
+                            <a class="gas-chip" href="@Url.Page("Index", "VistaCorreo", new { tipo = "cotizacion" })" target="_blank" rel="noopener">@Iconos.Svg("note") Cotización</a>
+                            <a class="gas-chip" href="@Url.Page("Index", "VistaCorreo", new { tipo = "soporte" })" target="_blank" rel="noopener">@Iconos.Svg("phone") Soporte</a>
+                            <a class="gas-chip" href="@Url.Page("Index", "VistaCorreo", new { tipo = "contrasena" })" target="_blank" rel="noopener">@Iconos.Svg("key") Contraseña</a>
+                        </dd>
+                    }
+                    @if (g.Id == "soporte")
+                    {
+                        <dt>URL del webhook</dt>
+                        <dd><code class="text-break">@Model.UrlWebhook</code></dd>
+                    }
+                </dl>
+            </div>
+            @if (g.Id == "correo")
+            {
+                <div class="px-4 pb-3">
+                    <form method="post" asp-page-handler="CorreoPrueba">
+                        <button type="submit" class="btn btn-sm btn-gas-outline" disabled="@(!Model.CorreoConfigurado)" title="@(Model.CorreoConfigurado ? "" : "Primero captura la API key y el remitente")">
+                            @Iconos.Svg("mail") Enviarme un correo de prueba
+                        </button>
+                    </form>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+<section class="gas-card mb-4">
+    <div class="gas-card__header">
+        <div>
+            <h2>@Iconos.Svg("plug") Llaves de productos e integraciones</h2>
+            <p>Se capturan en la pantalla de cada módulo; aquí ves de un vistazo cuáles faltan.</p>
+        </div>
+    </div>
+    @if (Model.Otras.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("key") Aún no hay cuentas de Stripe ni productos conectados.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Llave</th><th>Tipo</th><th>Estado</th><th>Dónde se configura</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var f in Model.Otras)
+                    {
+                        <tr>
+                            <td><strong>@f.Nombre</strong></td>
+                            <td>@f.Tipo</td>
+                            <td><partial name="_EstadoLlave" model="f.Estado" /></td>
+                            <td><a href="@f.Url" class="text-decoration-none">@f.Donde</a></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Llaves", new { grupo = f.Grupo, volver })">@Iconos.Svg("key") Capturar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="gas-card">
+    <div class="gas-card__header">
+        <div>
+            <h2>@Iconos.Svg("lock") Lo que vive fuera de la base de datos</h2>
+            <p>Solo dos datos, porque no pueden guardarse en la base que protegen. No necesitan user-secrets.</p>
+        </div>
+    </div>
+    <div class="gas-card__body">
+        <dl class="gas-meta">
+            <dt>Conexión a la base de datos</dt>
+            <dd>En tu equipo, <code>appsettings.Development.json</code> (excluido de git). En el servidor, la variable <code>ConnectionStrings__DefaultConnection</code>.</dd>
+            <dt>Llave maestra</dt>
+            <dd class="d-flex flex-wrap align-items-center gap-2">
+                <span class="gas-badge @(Model.LlaveMaestra ? "gas-badge--success" : "gas-badge--danger")">@Iconos.Svg(Model.LlaveMaestra ? "check" : "x") @(Model.LlaveMaestra ? "Lista" : "Falta")</span>
+                <span class="small text-muted text-break">@Model.OrigenLlave</span>
+            </dd>
+        </dl>
+        <div class="small text-muted mt-2">
+            La llave maestra cifra todas las llaves de esta pantalla. En tu equipo se generó sola en tu carpeta de usuario; en el servidor usa la variable
+            <code>Seguridad__LlaveMaestra</code> (o copia ahí ese archivo). Respáldala: si se pierde, hay que volver a capturar las llaves.
+        </div>
+    </div>
+</section>

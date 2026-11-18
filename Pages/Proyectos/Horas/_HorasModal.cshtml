@@ -1,0 +1,90 @@
+@model GAS.Admin.Pages.Proyectos.Horas.HorasModalVm
+@using System.Globalization
+@{
+    var formId = Model.EsNuevo ? "form-horas-nuevo" : $"form-horas-{Model.Id}";
+    var i = Model.Input;
+}
+<div data-size="lg" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon gas-modal__icon--violet">@Iconos.Svg("clock")</span>
+        <div>
+            <h2 class="modal-title">@(Model.EsNuevo ? "Registrar horas" : "Editar registro de horas")</h2>
+            <div class="gas-modal__subtitle">El costo por hora se toma de la persona al registrar y ya no cambia.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Proyectos/Horas/Index"
+              asp-page-handler="@(Model.EsNuevo ? "Crear" : "Guardar")" asp-route-id="@Model.Id">
+            <input type="hidden" name="volver" value="@Model.Volver" />
+            <section class="gas-card">
+                <div class="gas-card__header"><h2>@Iconos.Svg("clock") Tiempo trabajado</h2></div>
+                <div class="gas-card__body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="@formId-persona">Persona</label>
+                            <select id="@formId-persona" name="Input.PersonaId" class="form-select" disabled="@Model.SoloPropias">
+                                <option value="">Elegir…</option>
+                                @foreach (var p in Model.Personas) { <option value="@p.Id" selected="@(p.Id == i.PersonaId)">@p.Nombre</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label" for="@formId-fecha">Fecha</label>
+                            <input id="@formId-fecha" name="Input.Fecha" value="@i.Fecha.ToString("yyyy-MM-dd")" type="date" class="form-control"
+                                   max="@GAS.Admin.Services.Proyectos.ServicioTrabajos.Hoy.ToString("yyyy-MM-dd")" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label" for="@formId-horas">Horas</label>
+                            <input id="@formId-horas" name="Input.Horas" value="@i.Horas.ToString(CultureInfo.InvariantCulture)" type="number" min="0.25" max="24" step="0.25" class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="@formId-trabajo">Trabajo</label>
+                            <select id="@formId-trabajo" name="Input.TrabajoId" class="form-select" data-horas-trabajo>
+                                <option value="">Elegir…</option>
+                                @foreach (var t in Model.Trabajos) { <option value="@t.Id" selected="@(t.Id == i.TrabajoId)">@t.Folio · @t.Nombre</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="@formId-tarea">Tarea (opcional)</label>
+                            <select id="@formId-tarea" name="Input.TareaId" class="form-select" data-horas-tarea>
+                                <option value="">Sin tarea específica</option>
+                                @foreach (var t in Model.Tareas) { <option value="@t.Id" data-trabajo="@t.TrabajoId" selected="@(t.Id == i.TareaId)">@t.Titulo</option> }
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="@formId-nota">Nota</label>
+                            <input id="@formId-nota" name="Input.Nota" value="@i.Nota" class="form-control" maxlength="500" placeholder="Qué se hizo" />
+                        </div>
+                    </div>
+                    @if (Model.VerCosto)
+                    {
+                        <div class="gas-badges mt-3">
+                            @if (Model.CostoHora is not null)
+                            {
+                                <span class="gas-badge gas-badge--violet">Costo por hora: @Etiquetas.Dinero(Model.CostoHora, Model.MonedaCosto ?? "MXN")</span>
+                            }
+                            else
+                            {
+                                <span class="gas-badge gas-badge--warning">La persona no tiene costo por hora; estas horas no sumarán costo.</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </section>
+        </form>
+    </div>
+    <div class="modal-footer">
+        @if (!Model.EsNuevo)
+        {
+            <form method="post" asp-page="/Proyectos/Horas/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id" asp-route-volver="@Model.Volver"
+                  data-confirm-title="¿Eliminar este registro?" data-confirm="Las horas dejarán de contar en el trabajo y su costo."
+                  data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Eliminar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") Cancelar</button>
+            <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg("save") @(Model.EsNuevo ? "Registrar" : "Guardar")</button>
+        </div>
+    </div>
+</div>

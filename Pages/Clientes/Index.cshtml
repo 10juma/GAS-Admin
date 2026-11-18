@@ -1,0 +1,154 @@
+@page
+@model GAS.Admin.Pages.Clientes.IndexModel
+@{
+    ViewData["Title"] = "Clientes";
+    ViewData["Seccion"] = "Comercial";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+
+    var extra = new Dictionary<string, string>();
+    if (Model.Producto is not null) extra["producto"] = Model.Producto.ToString()!;
+    if (!string.IsNullOrWhiteSpace(Model.Q)) extra["q"] = Model.Q;
+    var filtros = new List<(string?, string, int, string)> { (null, "Todos", Model.Total, "dark") };
+    filtros.AddRange(Etiquetas.Valores<EstadoCliente>().Select(e => ((string?)e.ToString(), Etiquetas.Texto(e) + "s", Model.PorEstado.GetValueOrDefault(e), Etiquetas.Tono(e))));
+    var chips = (Pagina: "/Clientes/Index", Actual: Model.Estado, Opciones: (IEnumerable<(string?, string, int, string)>)filtros, Extra: (IDictionary<string, string>?)extra);
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Clientes</h1>
+        <p>Registro central de organizaciones y los productos que usan.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo", new { estado = Model.Estado, producto = Model.Producto, q = Model.Q })">
+            @Iconos.Svg("plus") Nuevo cliente
+        </button>
+    }
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <partial name="_ChipsEstado" model="chips" />
+        <form method="get" class="d-flex gap-2">
+            @if (!string.IsNullOrEmpty(Model.Estado)) { <input type="hidden" name="estado" value="@Model.Estado" /> }
+            @if (Model.Producto is not null) { <input type="hidden" name="producto" value="@Model.Producto" /> }
+            <div class="gas-input-icon">
+                @Iconos.Svg("search")
+                <input name="q" value="@Model.Q" class="form-control" placeholder="Nombre, RFC o contacto" aria-label="Buscar" style="min-width: 240px;" />
+            </div>
+            <button type="submit" class="btn btn-gas-outline">@Iconos.Svg("filter") Buscar</button>
+        </form>
+    </div>
+    <div class="gas-toolbar" style="padding-top: 10px; padding-bottom: 10px;">
+        <nav class="gas-chips" aria-label="Filtrar por producto">
+            <a asp-page="Index" asp-route-estado="@Model.Estado" asp-route-q="@Model.Q"
+               class="gas-chip @(Model.Producto is null ? "is-active gas-chip--dark" : "")">@Iconos.Svg("box") Cualquier producto</a>
+            @foreach (var (producto, clientes) in Model.PorProducto)
+            {
+                <a asp-page="Index" asp-route-producto="@producto.Id" asp-route-estado="@Model.Estado" asp-route-q="@Model.Q"
+                   class="gas-chip @(clientes > 0 ? "gas-chip--info" : "") @(Model.Producto == producto.Id ? "is-active" : "")">
+                    @producto.Nombre <span class="gas-chip__count">@clientes</span>
+                </a>
+            }
+        </nav>
+    </div>
+
+    @if (Model.Clientes.Count == 0)
+    {
+        <div class="gas-empty">
+            @Iconos.Svg("building")
+            @(Model.Total == 0 ? "Aún no hay clientes registrados." : "No hay clientes con estos filtros.")
+            @if (Model.Total == 0 && Model.PuedeGestionar)
+            {
+                <button type="button" class="btn btn-gas mt-2" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Registrar el primero</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Productos</th>
+                        <th>Contacto</th>
+                        <th>Responsable</th>
+                        <th>Estado</th>
+                        <th class="text-end"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in Model.Clientes)
+                    {
+                        <tr>
+                            <td>
+                                <div class="gas-person">
+                                    <span class="gas-avatar @Avatar.Clase(c.Nombre)" style="border-radius: 9px;">@Avatar.Iniciales(c.Nombre)</span>
+                                    <span class="gas-person__text">
+                                        <span class="gas-person__name">@c.Nombre</span>
+                                        <span class="gas-person__email">@(string.Join(" · ", new[] { c.RazonSocial, c.Rfc, c.Ciudad }.Where(x => !string.IsNullOrWhiteSpace(x))))</span>
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="gas-badges">
+                                    @if (c.Productos.Count == 0) { <span class="gas-badge gas-badge--plain">Ninguno</span> }
+                                    @foreach (var p in c.Productos)
+                                    {
+                                        <span class="gas-badge @Etiquetas.Badge(p.Estado)" title="@Etiquetas.Texto(p.Estado)">@p.Nombre</span>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                @if (c.Contacto is null && c.ContactoEmail is null)
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                                else
+                                {
+                                    <div class="gas-person__text">
+                                        <span>@c.Contacto</span>
+                                        <span class="gas-person__email">@c.ContactoEmail</span>
+                                    </div>
+                                }
+                            </td>
+                            <td>
+                                @if (c.Responsable is not null)
+                                {
+                                    <span class="d-inline-flex align-items-center gap-2"><span class="gas-avatar gas-avatar--sm @Avatar.Clase(c.Responsable)">@Avatar.Iniciales(c.Responsable)</span> @c.Responsable</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td><span class="gas-badge @Etiquetas.Badge(c.Estado)">@Etiquetas.Texto(c.Estado)</span></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-gas-outline"
+                                        data-modal-url="@Url.Page("Index", "Editar", new { id = c.Id, estado = Model.Estado, producto = Model.Producto, q = Model.Q })">
+                                    @if (Model.PuedeGestionar)
+                                    {
+                                        @Iconos.Svg("pencil") <span>Editar</span>
+                                    }
+                                    else
+                                    {
+                                        @Iconos.Svg("eye") <span>Ver</span>
+                                    }
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="gas-pager"><span>Mostrando @Model.Clientes.Count de @Model.Total clientes</span></div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_ClienteModal" model="Model.Modal" />
+    }
+}

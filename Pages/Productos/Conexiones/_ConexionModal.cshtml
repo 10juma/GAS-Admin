@@ -1,0 +1,103 @@
+@model GAS.Admin.Pages.Productos.Conexiones.ConexionModalVm
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-conexion-nueva" : $"form-conexion-{Model.Id}";
+    var i = Model.Input;
+    var clave = string.IsNullOrEmpty(i.Clave) ? "revendo" : i.Clave;
+}
+<div data-size="lg" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon gas-modal__icon--violet">@Iconos.Svg("plug")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@(Model.EsNuevo ? "Conectar producto" : "Conexión del producto")</h2>
+            <div class="gas-modal__subtitle">El producto debe implementar la API GAS v1 (especificación en <code>docs/api-gas-v1.md</code>).</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Productos/Conexiones/Index" asp-page-handler="Guardar" asp-route-id="@Model.Id" autocomplete="off">
+            <div class="row g-3">
+                <div class="col-12">
+                    <section class="gas-card">
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-prod">Producto</label>
+                                    <select id="@formId-prod" name="Input.ProductoId" class="form-select" disabled="@off">
+                                        <option value="">Elegir…</option>
+                                        @foreach (var p in Model.Productos) { <option value="@p.Id" selected="@(p.Id == i.ProductoId)">@p.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label" for="@formId-clave">Clave</label>
+                                    <input id="@formId-clave" name="Input.Clave" value="@i.Clave" class="form-control" maxlength="50" disabled="@off" placeholder="revendo" spellcheck="false" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label" for="@formId-act">Sincronización</label>
+                                    <select id="@formId-act" name="Input.Activa" class="form-select" disabled="@off">
+                                        <option value="true" selected="@i.Activa">Activa</option>
+                                        <option value="false" selected="@(!i.Activa)">Pausada</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-api">URL de la API GAS</label>
+                                    <input id="@formId-api" name="Input.UrlApi" value="@i.UrlApi" class="form-control" maxlength="500" disabled="@off" placeholder="https://api.revendo.mx/gas/v1" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-sa">URL del super-admin</label>
+                                    <input id="@formId-sa" name="Input.UrlSuperAdmin" value="@i.UrlSuperAdmin" class="form-control" maxlength="500" disabled="@off" placeholder="https://admin.revendo.mx" />
+                                    <div class="form-text">Para el botón "Abrir super-admin" con acceso firmado de un solo uso.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-12">
+                    <section class="gas-card">
+                        <div class="gas-card__header">
+                            <div><h2>@Iconos.Svg("key") Secreto compartido</h2><p>El mismo valor va en GAS-Admin y en el producto (variable GAS_SECRETO). En GAS-Admin se guarda cifrado.</p></div>
+                            @if (!Model.EsNuevo)
+                            {
+                                <span class="gas-badge @(Model.SecretoConfigurado ? "gas-badge--success" : "gas-badge--danger")">@Iconos.Svg(Model.SecretoConfigurado ? "check" : "x") @(Model.SecretoConfigurado ? "Configurado" : "Falta")</span>
+                            }
+                        </div>
+                        <div class="gas-card__body">
+                            @if (Model.EsNuevo)
+                            {
+                                <div class="small text-muted">Después de conectar el producto podrás generar y capturar su secreto.</div>
+                            }
+                            else if (User.IsInRole(RolesBase.Admin))
+                            {
+                                <button type="button" class="btn btn-sm btn-gas-outline"
+                                        data-modal-url="@Url.Page("/Organizacion/Configuracion/Index", "Llaves", new { grupo = $"producto:{clave}", volver = Url.Page("/Productos/Conexiones/Index") })">
+                                    @Iconos.Svg("key") @(Model.SecretoConfigurado ? "Reemplazar secreto" : "Generar y capturar secreto")
+                                </button>
+                            }
+                            else
+                            {
+                                <div class="small text-muted">Solo un Admin puede capturar el secreto.</div>
+                            }
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <form method="post" asp-page="/Productos/Conexiones/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id"
+                  data-confirm-title="¿Desconectar el producto?" data-confirm="Se borra la copia local de cuentas y métricas en GAS-Admin. El producto no se modifica."
+                  data-confirm-ok="Desconectar" data-confirm-tone="danger">
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Desconectar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg(Model.EsNuevo ? "check" : "save") @(Model.EsNuevo ? "Conectar" : "Guardar cambios")</button>
+            }
+        </div>
+    </div>
+</div>

@@ -1,0 +1,42 @@
+@model (List<SlaPrioridad> Sla, bool PuedeGestionar)
+@{
+    var off = !Model.PuedeGestionar;
+}
+<div data-size="md" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg("clock")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">Tiempos de servicio (SLA)</h2>
+            <div class="gas-modal__subtitle">Horas naturales desde que se crea el ticket. Aplican a tickets nuevos y a los que cambian de prioridad.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <form id="form-sla" method="post" asp-page="/Soporte/Index" asp-page-handler="Sla">
+            <section class="gas-card">
+                <div class="gas-table-wrap">
+                    <table class="gas-table">
+                        <thead><tr><th>Prioridad</th><th>Primera respuesta (h)</th><th>Resolución (h)</th></tr></thead>
+                        <tbody>
+                            @for (var i = 0; i < Model.Sla.Count; i++)
+                            {
+                                var s = Model.Sla[i];
+                                <tr>
+                                    <td><span class="gas-badge @Etiquetas.Badge(s.Prioridad)">@Etiquetas.Texto(s.Prioridad)</span><input type="hidden" name="sla[@i].Prioridad" value="@s.Prioridad" /></td>
+                                    <td><input name="sla[@i].PrimeraRespuestaHoras" value="@s.PrimeraRespuestaHoras" type="number" min="1" max="720" class="form-control form-control-sm" disabled="@off" aria-label="Primera respuesta en horas" /></td>
+                                    <td><input name="sla[@i].ResolucionHoras" value="@s.ResolucionHoras" type="number" min="1" max="2160" class="form-control form-control-sm" disabled="@off" aria-label="Resolución en horas" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </form>
+    </div>
+    <div class="modal-footer">
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar) { <button type="submit" form="form-sla" class="btn btn-gas">@Iconos.Svg("save") Guardar</button> }
+        </div>
+    </div>
+</div>

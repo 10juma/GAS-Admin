@@ -1,0 +1,48 @@
+@* Páginas públicas de acceso (recuperar contraseña): mismo diseño que el inicio de sesión. *@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f6f3" />
+    <meta name="referrer" content="no-referrer" />
+    <title>@ViewData["Title"] | GAS-Admin</title>
+    <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/toast.css" asp-append-version="true" />
+    <link rel="icon" type="image/png" href="~/images/gas-favicon.png" asp-append-version="true" />
+</head>
+<body>
+    <main class="login-page">
+        <section class="login-card">
+            <div class="card-brand">
+                <img src="~/images/gas-logo.png" alt="Global App Suite" class="brand-logo" />
+                <div class="brand-info">
+                    <span class="brand-name">GLOBAL APP SUITE</span>
+                    <span class="brand-subtitle">ADMINISTRATION</span>
+                </div>
+            </div>
+            <div class="brand-divider"></div>
+
+            @RenderBody()
+
+            <div class="security-note">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/>
+                    <path d="m9 12 2 2 4-4"/>
+                </svg>
+                Acceso seguro para colaboradores
+            </div>
+        </section>
+
+        <footer class="login-footer">
+            <span>GLOBAL APP SUITE</span>
+            <span>SOFTWARE QUE RESUELVE PROBLEMAS REALES</span>
+        </footer>
+    </main>
+
+    <partial name="_Toasts" />
+    <script src="~/js/toast.js" asp-append-version="true"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

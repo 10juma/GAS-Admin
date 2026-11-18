@@ -1,0 +1,124 @@
+@page
+@model GAS.Admin.Pages.Infraestructura.Ambientes.IndexModel
+@{
+    ViewData["Title"] = "Ambientes";
+    ViewData["Seccion"] = "Infraestructura";
+    if (Model.Modal is not null || Model.ModalDespliegue is not null) ViewData["AbrirModal"] = true;
+    var volver = Model.VolverActual;
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Ambientes</h1>
+        <p>Dónde corre cada producto: producción, staging, pruebas y desarrollo, con su URL, hosting, repositorio, versión y estado.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo", new { productoId = Model.Producto, volver })">@Iconos.Svg("plus") Nuevo ambiente</button>
+    }
+</div>
+
+<div class="gas-toolbar px-0 pt-0">
+    <nav class="gas-chips" aria-label="Producto">
+        <a asp-page="Index" class="gas-chip gas-chip--dark @(Model.Producto is null ? "is-active" : "")">Todos <span class="gas-chip__count">@Model.Total</span></a>
+        @foreach (var p in Model.Productos)
+        {
+            <a asp-page="Index" asp-route-producto="@p.Id" class="gas-chip @(Model.Producto == p.Id ? "is-active" : "")">@p.Nombre</a>
+        }
+    </nav>
+    <div class="gas-badges">
+        @foreach (var e in Etiquetas.Valores<EstadoAmbiente>().Where(e => Model.PorEstado.GetValueOrDefault(e) > 0))
+        {
+            <span class="gas-badge @Etiquetas.Badge(e)">@Etiquetas.Texto(e) · @Model.PorEstado[e]</span>
+        }
+    </div>
+</div>
+
+@if (Model.Grupos.Count == 0)
+{
+    <div class="gas-card">
+        <div class="gas-empty">
+            @Iconos.Svg("server") Aún no hay ambientes registrados.
+            <span class="small">Registra al menos el ambiente de producción de cada producto.</span>
+        </div>
+    </div>
+}
+@foreach (var g in Model.Grupos)
+{
+    <section class="gas-card mb-4">
+        <div class="gas-card__header">
+            <div><h2>@Iconos.Svg("box") @g.Producto</h2><p>@g.Ambientes.Count ambiente(s)</p></div>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Nuevo", new { productoId = g.ProductoId, volver })">@Iconos.Svg("plus") Ambiente</button>
+            }
+        </div>
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Ambiente</th><th>URL</th><th>Hosting · repositorio</th><th>Versión</th><th>Estado</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var f in g.Ambientes)
+                    {
+                        var a = f.Ambiente;
+                        <tr style="@(a.Estado == EstadoAmbiente.Inactivo ? "opacity: .6;" : "")">
+                            <td>
+                                <div class="gas-person__text">
+                                    <span class="gas-person__name">@a.Nombre</span>
+                                    <span class="gas-badges mt-1">
+                                        <span class="gas-badge @Etiquetas.Badge(a.Tipo)">@Etiquetas.Texto(a.Tipo)</span>
+                                        <span class="gas-badge gas-badge--plain">@Etiquetas.Texto(a.Plataforma)</span>
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                @if (a.Url is null) { <span class="text-muted">—</span> }
+                                else { <a href="@a.Url" target="_blank" rel="noopener noreferrer" class="text-decoration-none">@Iconos.Svg("external") @a.Url.Replace("https://", "").Replace("http://", "")</a> }
+                            </td>
+                            <td>
+                                <div>@(f.Hosting ?? "—")</div>
+                                <div class="small text-muted">@if (f.Repositorio is not null) { @Iconos.Svg("git") @f.Repositorio @(a.Rama is null ? "" : $"· {a.Rama}") }</div>
+                            </td>
+                            <td>
+                                @if (a.Version is null) { <span class="text-muted">—</span> }
+                                else
+                                {
+                                    <strong>@a.Version</strong>
+                                    <div class="small text-muted">@Fechas.Relativo(a.UltimoDespliegueUtc)</div>
+                                }
+                            </td>
+                            <td>
+                                <span class="gas-badge @Etiquetas.Badge(a.Estado)">@Etiquetas.Texto(a.Estado)</span>
+                                @if (f.Monitor is { } mon)
+                                {
+                                    <div class="small text-muted mt-1" title="UptimeRobot · @mon.Nombre">@Iconos.Svg("activity") @(mon.Estado switch { EstadoMonitor.Arriba => "arriba", EstadoMonitor.Caido => "caído", EstadoMonitor.Dudoso => "con fallas", EstadoMonitor.Pausado => "pausado", _ => "sin revisar" })@(mon.Uptime30d is null ? "" : $" · {mon.Uptime30d:0.##}%")</div>
+                                }
+                                @if (f.Incidentes > 0)
+                                {
+                                    <a asp-page="/Infraestructura/Incidentes/Index" class="gas-badge gas-badge--danger gas-badge--btn text-decoration-none">@Iconos.Svg("alert") @f.Incidentes</a>
+                                }
+                            </td>
+                            <td class="text-end text-nowrap">
+                                @if (Model.PuedeGestionar)
+                                {
+                                    <button type="button" class="btn btn-sm btn-gas" data-modal-url="@Url.Page("Index", "Despliegue", new { ambienteId = a.Id, volver })">@Iconos.Svg("rocket") Desplegar</button>
+                                }
+                                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = a.Id, volver })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Editar" : "Ver")</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_AmbienteModal" model="Model.Modal" />
+    }
+    else if (Model.ModalDespliegue is not null)
+    {
+        <partial name="_DespliegueModal" model="Model.ModalDespliegue" />
+    }
+}

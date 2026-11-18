@@ -1,0 +1,280 @@
+@page "{id:int?}"
+@model GAS.Admin.Pages.Proyectos.Detalle.IndexModel
+@using System.Globalization
+@{
+    var t = Model.Trabajo;
+    ViewData["Title"] = $"{t.Folio} · {t.Nombre}";
+    ViewData["Seccion"] = "Proyectos · Trabajos";
+    if (Model.ModalEntregable is not null) ViewData["AbrirModal"] = true;
+    var hoy = GAS.Admin.Services.Proyectos.ServicioTrabajos.Hoy;
+    var mx = new CultureInfo("es-MX");
+    var avance = Model.Tareas == 0 ? 0 : (int)Math.Round(Model.TareasTerminadas * 100.0 / Model.Tareas);
+    var atrasado = t.Atrasado(hoy);
+    int? dias = t.FechaEntrega is null ? null : t.FechaEntrega.Value.DayNumber - hoy.DayNumber;
+    var volver = Model.Volver;
+    var archivos = (Model.Archivos, (int?)t.Id, (int?)null, (int?)null, (string?)volver, Model.PuedeGestionar);
+    var r = Model.Rentabilidad;
+}
+
+@Html.AntiForgeryToken()
+
+<div class="gas-page-header">
+    <div class="min-w-0">
+        <a asp-page="/Proyectos/Index" class="small text-decoration-none">@Iconos.Svg("arrow-left") Trabajos</a>
+        <h1 class="mt-1"><partial name="_IconoPagina" />@t.Folio · @t.Nombre</h1>
+        <div class="gas-badges mt-2">
+            <span class="gas-badge @Etiquetas.Badge(t.Tipo)">@Etiquetas.Texto(t.Tipo)</span>
+            <span class="gas-badge @Etiquetas.Badge(t.Estado)">@Etiquetas.Texto(t.Estado)</span>
+            <span class="gas-badge @Etiquetas.Badge(t.Prioridad)">Prioridad @Etiquetas.Texto(t.Prioridad).ToLowerInvariant()</span>
+            @if (Model.Para is not null) { <span class="gas-badge gas-badge--plain">@Iconos.Svg(t.EsInterno ? "box" : "building") @Model.Para</span> }
+            @if (Model.Responsable is not null) { <span class="gas-badge gas-badge--plain">@Iconos.Svg("users") @Model.Responsable@(Model.Departamento is null ? "" : " · " + Model.Departamento)</span> }
+            @if (t.Cotizacion is not null)
+            {
+                <a class="gas-badge gas-badge--info gas-badge--btn text-decoration-none" href="@Url.Page("/Comercial/Cotizaciones/Index", new { abrir = t.CotizacionId })">@Iconos.Svg("note") @t.Cotizacion.FolioCompleto</a>
+            }
+        </div>
+    </div>
+    <div class="gas-page-header__actions">
+        @if (Model.PuedeRegistrarHoras)
+        {
+            <button type="button" class="btn btn-gas-outline" data-modal-url="@Url.Page("/Proyectos/Horas/Index", "Nuevo", new { trabajoId = t.Id, volver })">@Iconos.Svg("clock") Registrar horas</button>
+        }
+        @if (Model.PuedeGestionar)
+        {
+            <button type="button" class="btn btn-gas-outline" data-modal-url="@Url.Page("/Proyectos/Tareas/Index", "Nuevo", new { trabajoId = t.Id, volver })">@Iconos.Svg("plus") Tarea</button>
+        }
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("/Proyectos/Index", "Editar", new { id = t.Id, volver })">
+            @if (Model.PuedeGestionar) { @Iconos.Svg("pencil") <span>Editar</span> } else { @Iconos.Svg("eye") <span>Datos</span> }
+        </button>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(t.Descripcion))
+{
+    <p class="mb-4" style="max-width: 900px; color: var(--gas-muted); white-space: pre-line;">@t.Descripcion</p>
+}
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("check")</span>
+        <div class="flex-grow-1">
+            <div class="gas-stat__label">Avance de tareas</div>
+            <div class="gas-stat__value">@avance%</div>
+            <div class="gas-progress mt-2"><span style="width: @avance%"></span></div>
+            <div class="gas-stat__hint">@Model.TareasTerminadas de @Model.Tareas terminadas</div>
+        </div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--violet">
+        <span class="gas-stat__icon">@Iconos.Svg("clock")</span>
+        <div><div class="gas-stat__label">Horas</div><div class="gas-stat__value">@Model.HorasRegistradas.ToString("0.#")</div><div class="gas-stat__hint">@(Model.HorasEstimadas > 0 ? $"de {Model.HorasEstimadas:0.#} h estimadas en tareas" : "registradas")</div></div>
+    </div>
+    <div class="gas-card gas-stat @(atrasado ? "gas-stat--danger" : dias is >= 0 and <= 7 ? "gas-stat--warning" : "gas-stat--muted")">
+        <span class="gas-stat__icon">@Iconos.Svg("calendar")</span>
+        <div>
+            <div class="gas-stat__label">Entrega comprometida</div>
+            <div class="gas-stat__value" style="font-size: 20px; line-height: 1.3;">@(t.FechaEntrega?.ToString("dd MMM yyyy", mx) ?? "Sin fecha")</div>
+            <div class="gas-stat__hint">@(dias is null ? "" : !t.Activo ? $"cerrado {t.FechaCierre?.ToString("dd/MM/yyyy")}" : atrasado ? $"atrasado {-dias} días" : dias == 0 ? "vence hoy" : $"faltan {dias} días")</div>
+        </div>
+    </div>
+    @if (r is not null)
+    {
+        <div class="gas-card gas-stat @(r.Margen is null ? "gas-stat--muted" : r.Margen < r.MargenEstimado ? "gas-stat--warning" : "")">
+            <span class="gas-stat__icon">@Iconos.Svg("dollar")</span>
+            <div>
+                <div class="gas-stat__label">Margen real</div>
+                <div class="gas-stat__value">@(r.Margen is null ? "—" : (r.Margen.Value * 100).ToString("0.#") + "%")</div>
+                <div class="gas-stat__hint">estimado: @(r.MargenEstimado is null ? "—" : (r.MargenEstimado.Value * 100).ToString("0.#") + "%")</div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="gas-card gas-stat gas-stat--muted">
+            <span class="gas-stat__icon">@Iconos.Svg("layers")</span>
+            <div><div class="gas-stat__label">Entregables</div><div class="gas-stat__value">@Model.Entregables.Count(e => e.Estado == EstadoEntregable.Aceptado)/@Model.Entregables.Count</div><div class="gas-stat__hint">aceptados por el cliente</div></div>
+        </div>
+    }
+</div>
+
+<section class="mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <h2 class="h6 m-0 d-flex align-items-center gap-2" style="font-weight: 700;">@Iconos.Svg("activity") Tareas del trabajo</h2>
+        <a asp-page="/Proyectos/Tareas/Index" asp-route-trabajo="@t.Id" class="small">Ver en el tablero general</a>
+    </div>
+    <partial name="/Pages/Proyectos/_TableroTareas.cshtml" model="(Model.Columnas, Model.PuedeGestionar, volver, (int?)t.Id)" />
+</section>
+
+<div class="gas-grid gas-grid--2">
+    <section class="gas-card">
+        <div class="gas-card__header">
+            <div><h2>@Iconos.Svg("check") Entregables</h2><p>Lo que se entrega al cliente.</p></div>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "NuevoEntregable", new { trabajoId = t.Id })">@Iconos.Svg("plus") Entregable</button>
+            }
+        </div>
+        @if (Model.Entregables.Count == 0)
+        {
+            <div class="gas-empty py-4">@Iconos.Svg("check") Sin entregables.</div>
+        }
+        else
+        {
+            <ul class="gas-timeline">
+                @foreach (var e in Model.Entregables)
+                {
+                    var vencido = e.Estado == EstadoEntregable.Pendiente && e.FechaCompromiso < hoy;
+                    var punto = e.Estado switch { EstadoEntregable.Aceptado => "gas-timeline__dot--success", EstadoEntregable.Entregado => "", _ => vencido ? "gas-timeline__dot--danger" : "gas-timeline__dot--warning" };
+                    <li style="align-items: center;">
+                        <span class="gas-timeline__dot @punto"></span>
+                        <div class="gas-timeline__body">
+                            <button type="button" class="gas-link-btn" data-modal-url="@Url.Page("Index", "EditarEntregable", new { id = e.Id })"><strong>@e.Nombre</strong></button>
+                            <span>@(e.FechaCompromiso is null ? "Sin fecha" : "Compromiso " + e.FechaCompromiso.Value.ToString("dd/MM/yyyy"))@(e.FechaEntrega is null ? "" : " · entregado " + e.FechaEntrega.Value.ToString("dd/MM/yyyy"))</span>
+                        </div>
+                        <span class="gas-badge @(vencido ? "gas-badge--danger" : Etiquetas.Badge(e.Estado))">@(vencido ? "Vencido" : Etiquetas.Texto(e.Estado))</span>
+                        @if (Model.PuedeGestionar && e.Estado != EstadoEntregable.Aceptado)
+                        {
+                            var siguiente = e.Estado == EstadoEntregable.Pendiente ? EstadoEntregable.Entregado : EstadoEntregable.Aceptado;
+                            <form method="post" asp-page="Index" asp-page-handler="EstadoEntregable" asp-route-id="@e.Id" asp-route-estado="@siguiente">
+                                <button type="submit" class="btn btn-sm btn-gas-outline" title="Marcar como @Etiquetas.Texto(siguiente).ToLowerInvariant()">@Iconos.Svg("check") @Etiquetas.Texto(siguiente)</button>
+                            </form>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    @if (t.Tipo == TipoTrabajoOperativo.ServicioRecurrente)
+    {
+        <section class="gas-card">
+            <div class="gas-card__header">
+                <div><h2>@Iconos.Svg("refresh") Ciclos mensuales</h2><p>Cada mes con sus horas, su costo y su monto.</p></div>
+                @if (Model.PuedeGestionar && Model.FaltaCicloActual)
+                {
+                    <form method="post" asp-page="Index" asp-page-handler="AbrirCiclo" asp-route-id="@t.Id">
+                        <button type="submit" class="btn btn-sm btn-gas">@Iconos.Svg("plus") Abrir ciclo de @hoy.ToString("MMMM", mx)</button>
+                    </form>
+                }
+            </div>
+            @if (Model.Ciclos.Count == 0)
+            {
+                <div class="gas-empty py-4">Sin ciclos.</div>
+            }
+            else
+            {
+                <div class="gas-table-wrap">
+                    <table class="gas-table">
+                        <thead><tr><th>Periodo</th><th class="text-end">Horas</th>@if (Model.VerFinanzas) { <th class="text-end">Monto</th><th class="text-end">Costo</th><th>Margen</th> }<th>Estado</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var c in Model.Ciclos)
+                            {
+                                var costo = c.Costo.GetValueOrDefault(t.Moneda);
+                                decimal? margen = c.Ciclo.Monto is > 0 ? Math.Round((c.Ciclo.Monto.Value - costo) / c.Ciclo.Monto.Value, 4) : null;
+                                <tr>
+                                    <td class="text-capitalize">@c.Ciclo.Periodo.ToString("MMMM yyyy", mx)</td>
+                                    <td class="text-end">@c.Horas.ToString("0.#")</td>
+                                    @if (Model.VerFinanzas)
+                                    {
+                                        <td class="text-end">@Etiquetas.Dinero(c.Ciclo.Monto, t.Moneda)</td>
+                                        <td class="text-end">@Etiquetas.Dinero(costo, t.Moneda)</td>
+                                        <td><partial name="_Margen" model="margen" /></td>
+                                    }
+                                    <td><span class="gas-badge @Etiquetas.Badge(c.Ciclo.Estado)">@Etiquetas.Texto(c.Ciclo.Estado)</span></td>
+                                    <td class="text-end">
+                                        @if (Model.PuedeGestionar)
+                                        {
+                                            var nuevo = c.Ciclo.Estado == EstadoCiclo.Abierto ? EstadoCiclo.Cerrado : EstadoCiclo.Abierto;
+                                            <form method="post" asp-page="Index" asp-page-handler="Ciclo" asp-route-cicloId="@c.Ciclo.Id" asp-route-estado="@nuevo">
+                                                <button type="submit" class="btn btn-sm btn-gas-outline">@(nuevo == EstadoCiclo.Cerrado ? "Cerrar" : "Reabrir")</button>
+                                            </form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+    else if (r is not null)
+    {
+        <section class="gas-card">
+            <div class="gas-card__header"><div><h2>@Iconos.Svg("dollar") Rentabilidad</h2><p>Montos sin IVA, en @t.Moneda.</p></div></div>
+            <div class="gas-card__body">
+                <dl class="gas-totales__lista">
+                    <dt>Ingreso esperado</dt><dd>@Etiquetas.Dinero(r.Ingreso, t.Moneda)</dd>
+                    <dt>Costo de horas (@r.HorasTotales.ToString("0.#") h)</dt><dd>−@Etiquetas.Dinero(r.CostoHoras, t.Moneda)</dd>
+                    <dt>Gastos directos</dt><dd>−@Etiquetas.Dinero(r.GastosDirectos, t.Moneda)</dd>
+                    @if (r.Egresos > 0)
+                    {
+                        <dt>Egresos registrados en Finanzas</dt><dd>−@Etiquetas.Dinero(r.Egresos, t.Moneda)</dd>
+                    }
+                    <dt class="gas-totales__total">Utilidad</dt><dd class="gas-totales__total">@Etiquetas.Dinero(r.Utilidad, t.Moneda)</dd>
+                </dl>
+                <div class="gas-badges mt-3">
+                    <span class="gas-badge gas-badge--plain">Margen real</span> <partial name="_Margen" model="r.Margen" />
+                    <span class="gas-badge gas-badge--plain ms-2">Estimado en cotización</span> <partial name="_Margen" model="r.MargenEstimado" />
+                </div>
+                @if (r.HorasSinCosto > 0)
+                {
+                    <div class="form-text mt-2">@r.HorasSinCosto.ToString("0.#") h son de personas sin costo por hora y no suman costo.</div>
+                }
+                @if (r.CostoOtrasMonedas.Count > 0)
+                {
+                    <div class="form-text">Además hay costos en otra moneda sin convertir: @string.Join(", ", r.CostoOtrasMonedas.Select(x => Etiquetas.Dinero(x.Value, x.Key))).</div>
+                }
+                <div class="d-flex align-items-center justify-content-between gap-2 mt-3 pt-3" style="border-top: 1px solid var(--gas-border);">
+                    <div class="small">
+                        <div><span class="text-muted">Cobrado</span> <strong>@Etiquetas.Dinero(r.Cobrado, t.Moneda)</strong></div>
+                        <div><span class="text-muted">Por cobrar</span> <strong>@Etiquetas.Dinero(r.PorCobrar, t.Moneda)</strong></div>
+                    </div>
+                    <a asp-page="/Finanzas/Movimientos/Index" asp-route-trabajo="@t.Id" asp-route-vista="todos" class="btn btn-sm btn-gas-outline">@Iconos.Svg("dollar") Movimientos</a>
+                </div>
+            </div>
+        </section>
+    }
+
+    <section class="gas-card">
+        <div class="gas-card__header">
+            <h2>@Iconos.Svg("clock") Horas recientes</h2>
+            <a asp-page="/Proyectos/Horas/Index" class="small">Registro de horas</a>
+        </div>
+        @if (Model.HorasRecientes.Count == 0)
+        {
+            <div class="gas-empty py-4">@Iconos.Svg("clock") Sin horas registradas.</div>
+        }
+        else
+        {
+            <ul class="gas-timeline">
+                @foreach (var h in Model.HorasRecientes)
+                {
+                    <li>
+                        <span class="gas-avatar gas-avatar--sm @Avatar.Clase(h.Persona.NombreCompleto)">@Avatar.Iniciales(h.Persona.NombreCompleto)</span>
+                        <div class="gas-timeline__body">
+                            <strong>@h.Persona.NombreCompleto</strong>
+                            <span>@h.Fecha.ToString("dd/MM/yyyy")@(h.Tarea is null ? "" : " · " + h.Tarea.Titulo)@(string.IsNullOrEmpty(h.Nota) ? "" : " · " + h.Nota)</span>
+                        </div>
+                        <span class="gas-badge gas-badge--violet gas-badge--plain">@h.Horas.ToString("0.##") h</span>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="gas-card">
+        <div class="gas-card__header"><div><h2>@Iconos.Svg("note") Archivos</h2><p>Documentos del trabajo.</p></div></div>
+        <partial name="/Pages/Proyectos/_Archivos.cshtml" model="archivos" />
+    </section>
+</div>
+
+@section Modal {
+    @if (Model.ModalEntregable is not null)
+    {
+        <partial name="_EntregableModal" model="Model.ModalEntregable" />
+    }
+}
+
+@section Scripts {
+    <script src="~/js/kanban.js" asp-append-version="true"></script>
+}

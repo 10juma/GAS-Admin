@@ -1,0 +1,176 @@
+@page
+@model GAS.Admin.Pages.ServiciosExternos.IndexModel
+@{
+    ViewData["Title"] = "Servicios externos";
+    ViewData["Seccion"] = "Infraestructura";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+
+    var extra = new Dictionary<string, string>();
+    if (!string.IsNullOrWhiteSpace(Model.Q)) extra["q"] = Model.Q;
+    var filtros = new List<(string?, string, int, string)> { (null, "Todos", Model.Total, "dark") };
+    filtros.AddRange(Model.PorCategoria.OrderBy(c => c.Key).Select(c => ((string?)c.Key.ToString(), Etiquetas.Texto(c.Key), c.Value, "violet")));
+    var chips = (Pagina: "/ServiciosExternos/Index", Actual: Model.Estado, Opciones: (IEnumerable<(string?, string, int, string)>)filtros, Extra: (IDictionary<string, string>?)extra);
+    var costo = Model.CostoMensual.Count == 0 ? "—" : string.Join(" + ", Model.CostoMensual.OrderBy(c => c.Key).Select(c => Etiquetas.Dinero(c.Value, c.Key)));
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Servicios externos</h1>
+        <p>Proveedores y herramientas: costo, renovaciones y qué productos dependen de cada uno.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo", new { estado = Model.Estado, q = Model.Q })">
+            @Iconos.Svg("plus") Nuevo servicio
+        </button>
+    }
+</div>
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <div class="gas-card gas-stat gas-stat--violet">
+        <span class="gas-stat__icon">@Iconos.Svg("plug")</span>
+        <div>
+            <div class="gas-stat__label">Servicios en uso</div>
+            <div class="gas-stat__value">@Model.Activos</div>
+            <div class="gas-stat__hint">de @Model.Total registrados</div>
+        </div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("dollar")</span>
+        <div class="min-w-0">
+            <div class="gas-stat__label">Costo mensual estimado</div>
+            <div class="gas-stat__value" style="font-size: 20px; line-height: 1.25;">@costo</div>
+            <div class="gas-stat__hint">anuales y trimestrales prorrateados</div>
+        </div>
+    </div>
+    <div class="gas-card gas-stat @(Model.RenovacionesProximas > 0 ? "gas-stat--warning" : "gas-stat--muted")">
+        <span class="gas-stat__icon">@Iconos.Svg("refresh")</span>
+        <div>
+            <div class="gas-stat__label">Renovaciones (30 días)</div>
+            <div class="gas-stat__value">@Model.RenovacionesProximas</div>
+            <div class="gas-stat__hint">incluye vencidas</div>
+        </div>
+    </div>
+    <div class="gas-card gas-stat @(Model.SinCosto > 0 ? "gas-stat--danger" : "gas-stat--muted")">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div>
+            <div class="gas-stat__label">Sin costo capturado</div>
+            <div class="gas-stat__value">@Model.SinCosto</div>
+            <div class="gas-stat__hint">con cobro fijo pendiente de registrar</div>
+        </div>
+    </div>
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <partial name="_ChipsEstado" model="chips" />
+        <form method="get" class="d-flex gap-2">
+            @if (!string.IsNullOrEmpty(Model.Estado)) { <input type="hidden" name="estado" value="@Model.Estado" /> }
+            <div class="gas-input-icon">
+                @Iconos.Svg("search")
+                <input name="q" value="@Model.Q" class="form-control" placeholder="Servicio, uso o cuenta" aria-label="Buscar" style="min-width: 220px;" />
+            </div>
+            <button type="submit" class="btn btn-gas-outline">@Iconos.Svg("filter") Buscar</button>
+        </form>
+    </div>
+
+    @if (Model.Servicios.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("plug") No hay servicios con estos filtros.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr>
+                        <th>Servicio</th>
+                        <th>Productos</th>
+                        <th>Plan y costo</th>
+                        <th>Renovación</th>
+                        <th>Responsable</th>
+                        <th>Estado</th>
+                        <th class="text-end"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Model.Servicios)
+                    {
+                        var s = f.Servicio;
+                        var porProducto = s.CostoMensual is not null && f.Productos.Count > 0 ? Math.Round(s.CostoMensual.Value / f.Productos.Count, 2) : (decimal?)null;
+                        <tr style="@(s.Estado == EstadoServicio.Cancelado ? "opacity: .6;" : "")">
+                            <td>
+                                <div class="gas-person">
+                                    <span class="gas-stat__icon" style="width: 36px; height: 36px; border-radius: 10px; background: var(--gas-violet-bg); color: var(--gas-violet);">@Iconos.Svg(Etiquetas.IconoCategoria(s.Categoria))</span>
+                                    <span class="gas-person__text">
+                                        <span class="gas-person__name">@s.Nombre <span class="gas-badge gas-badge--plain ms-1">@Etiquetas.Texto(s.Categoria)</span></span>
+                                        <span class="gas-person__email">@(s.Descripcion ?? "")</span>
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="gas-badges">
+                                    @if (f.Productos.Count == 0) { <span class="gas-badge gas-badge--warning" title="Sin productos no se puede repartir su costo">Sin asignar</span> }
+                                    @foreach (var p in f.Productos) { <span class="gas-badge gas-badge--info">@p</span> }
+                                </div>
+                            </td>
+                            <td>
+                                <div class="gas-person__text">
+                                    <span>
+                                        @if (s.Costo is not null)
+                                        {
+                                            <strong>@Etiquetas.Dinero(s.Costo, s.Moneda)</strong> <span class="text-muted">· @Etiquetas.Texto(s.Periodicidad)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">@Etiquetas.Texto(s.Periodicidad)</span>
+                                        }
+                                    </span>
+                                    <span class="gas-person__email">
+                                        @(s.Plan ?? "")
+                                        @if (porProducto is not null && f.Productos.Count > 1)
+                                        {
+                                            <span title="Reparto en partes iguales"> · ≈ @Etiquetas.Dinero(porProducto, s.Moneda)/mes por producto</span>
+                                        }
+                                    </span>
+                                </div>
+                            </td>
+                            <td><partial name="_Renovacion" model="(s.ProximaRenovacion, f.DiasParaRenovar, s.Estado == EstadoServicio.Cancelado)" /></td>
+                            <td>
+                                @if (f.Responsable is not null)
+                                {
+                                    <span class="d-inline-flex align-items-center gap-2"><span class="gas-avatar gas-avatar--sm @Avatar.Clase(f.Responsable)">@Avatar.Iniciales(f.Responsable)</span> @f.Responsable</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td><span class="gas-badge @Etiquetas.Badge(s.Estado)">@Etiquetas.Texto(s.Estado)</span></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = s.Id, estado = Model.Estado, q = Model.Q })">
+                                    @if (Model.PuedeGestionar)
+                                    {
+                                        @Iconos.Svg("pencil") <span>Editar</span>
+                                    }
+                                    else
+                                    {
+                                        @Iconos.Svg("eye") <span>Ver</span>
+                                    }
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="gas-pager"><span>Mostrando @Model.Servicios.Count de @Model.Total servicios</span></div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_ServicioModal" model="Model.Modal" />
+    }
+}

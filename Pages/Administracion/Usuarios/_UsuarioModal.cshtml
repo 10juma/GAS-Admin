@@ -1,0 +1,164 @@
+@model GAS.Admin.Pages.Administracion.Usuarios.UsuarioModalVm
+@{
+    var deshabilitado = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-usuario-nuevo" : $"form-usuario-{Model.Id}";
+    // Ruta de las acciones: id del usuario + filtros de la lista.
+    var ruta = new Dictionary<string, string>();
+    if (Model.Id is not null) ruta["id"] = Model.Id;
+    if (!string.IsNullOrEmpty(Model.Estado)) ruta["estado"] = Model.Estado;
+    if (!string.IsNullOrEmpty(Model.Q)) ruta["q"] = Model.Q;
+}
+<div data-size="lg" style="display: contents;">
+    <div class="modal-header">
+        @if (Model.EsNuevo)
+        {
+            <span class="gas-modal__icon">@Iconos.Svg("user-plus")</span>
+            <div>
+                <h2 class="modal-title">Nuevo usuario</h2>
+                <div class="gas-modal__subtitle">Se generará una contraseña temporal que deberá cambiar en su primer acceso.</div>
+            </div>
+        }
+        else
+        {
+            <span class="gas-avatar gas-avatar--lg @Avatar.Clase(Model.Email) @(Model.Activo ? "" : "gas-avatar--muted")">@Avatar.Iniciales(Model.Nombre)</span>
+            <div class="min-w-0">
+                <h2 class="modal-title">@Model.Nombre</h2>
+                <div class="gas-modal__subtitle">@Model.Email</div>
+                <div class="gas-badges mt-2">
+                    @if (Model.EsUsuarioActual)
+                    {
+                        <span class="gas-badge gas-badge--success">Tu cuenta</span>
+                    }
+                    @if (Model.Activo)
+                    {
+                        <span class="gas-badge gas-badge--success">Activo</span>
+                    }
+                    else
+                    {
+                        <span class="gas-badge">Inactivo</span>
+                    }
+                    @if (Model.Bloqueado)
+                    {
+                        <span class="gas-badge gas-badge--danger" title="Hasta @Fechas.Formato(Model.BloqueadoHastaUtc)">Bloqueado</span>
+                    }
+                    @if (Model.DebeCambiarPassword)
+                    {
+                        <span class="gas-badge gas-badge--warning">Contraseña temporal</span>
+                    }
+                    <span class="gas-badge gas-badge--plain" title="Fecha de alta">@Iconos.Svg("calendar") Alta @Fechas.Formato(Model.FechaAltaUtc)</span>
+                    <span class="gas-badge gas-badge--plain" title="@Fechas.Formato(Model.UltimoAccesoUtc)">@Iconos.Svg("clock") Último acceso: @Fechas.Relativo(Model.UltimoAccesoUtc).ToLowerInvariant()</span>
+                </div>
+            </div>
+        }
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate
+              asp-page="/Administracion/Usuarios/Index"
+              asp-page-handler="@(Model.EsNuevo ? "Crear" : "Guardar")"
+              asp-route-id="@Model.Id">
+            <input type="hidden" name="Estado" value="@Model.Estado" />
+            <input type="hidden" name="Q" value="@Model.Q" />
+
+            <section class="gas-card">
+                <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Datos del usuario</h2></div>
+                <div class="gas-card__body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="@(formId)-nombre">Nombre completo</label>
+                            <input id="@(formId)-nombre" name="Input.NombreCompleto" value="@Model.Input.NombreCompleto"
+                                   class="form-control" autocomplete="off" maxlength="150" disabled="@deshabilitado" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="@(formId)-email">Correo electrónico</label>
+                            <input id="@(formId)-email" name="Input.Email" value="@Model.Input.Email" type="email"
+                                   class="form-control" autocomplete="off" placeholder="nombre@globalappsuite.com.mx" disabled="@deshabilitado" />
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="gas-card">
+                <div class="gas-card__header">
+                    <div>
+                        <h2>@Iconos.Svg("shield") Roles</h2>
+                        <p>Definen a qué módulos tiene acceso.</p>
+                    </div>
+                </div>
+                <div class="gas-card__body">
+                    <partial name="_RolesSelector" model="(Model.RolesDisponibles, Model.Input.Roles, deshabilitado)" />
+                </div>
+            </section>
+        </form>
+    </div>
+
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar && !Model.EsUsuarioActual)
+        {
+            <div class="dropup">
+                <button type="button" class="btn btn-gas-outline" data-bs-toggle="dropdown" aria-expanded="false">
+                    @Iconos.Svg("lock") Acciones
+                </button>
+                <div class="dropdown-menu">
+                    @if (Model.Bloqueado)
+                    {
+                        <form method="post" asp-page="/Administracion/Usuarios/Index" asp-page-handler="Desbloquear"
+                              asp-all-route-data="ruta">
+                            <button type="submit" class="dropdown-item">@Iconos.Svg("unlock") Desbloquear</button>
+                        </form>
+                    }
+                    <form method="post" asp-page="/Administracion/Usuarios/Index" asp-page-handler="Restablecer"
+                          asp-all-route-data="ruta"
+                          data-confirm-title="¿Restablecer la contraseña de @Model.Nombre?"
+                          data-confirm="Se generará una contraseña temporal nueva y se cerrarán sus sesiones abiertas."
+                          data-confirm-ok="Restablecer">
+                        <button type="submit" class="dropdown-item">@Iconos.Svg("key") Restablecer contraseña</button>
+                    </form>
+                    @if (Model.Activo)
+                    {
+                        <form method="post" asp-page="/Administracion/Usuarios/Index" asp-page-handler="Desactivar"
+                              asp-all-route-data="ruta"
+                              data-confirm-title="¿Desactivar a @Model.Nombre?"
+                              data-confirm="No podrá iniciar sesión hasta que lo reactives. Su historial se conserva."
+                              data-confirm-ok="Desactivar" data-confirm-tone="danger">
+                            <button type="submit" class="dropdown-item">@Iconos.Svg("user-x") Desactivar</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="post" asp-page="/Administracion/Usuarios/Index" asp-page-handler="Activar"
+                              asp-all-route-data="ruta">
+                            <button type="submit" class="dropdown-item">@Iconos.Svg("user-check") Activar</button>
+                        </form>
+                    }
+                    <div class="dropdown-divider"></div>
+                    <form method="post" asp-page="/Administracion/Usuarios/Index" asp-page-handler="Eliminar"
+                          asp-all-route-data="ruta"
+                          data-confirm-title="¿Eliminar a @Model.Nombre?"
+                          data-confirm="Se eliminará de forma permanente y no se puede deshacer. La auditoría conservará su historial. Si solo quieres quitarle el acceso, desactívalo."
+                          data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                        <button type="submit" class="dropdown-item text-danger">@Iconos.Svg("trash") Eliminar</button>
+                    </form>
+                </div>
+            </div>
+        }
+
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">
+                    @if (Model.EsNuevo)
+                    {
+                        @Iconos.Svg("check") <span>Crear usuario</span>
+                    }
+                    else
+                    {
+                        @Iconos.Svg("save") <span>Guardar cambios</span>
+                    }
+                </button>
+            }
+        </div>
+    </div>
+</div>

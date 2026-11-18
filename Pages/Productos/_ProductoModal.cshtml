@@ -1,0 +1,180 @@
+@model GAS.Admin.Pages.Productos.ProductoModalVm
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-producto-nuevo" : $"form-producto-{Model.Id}";
+    var i = Model.Input;
+    var responsable = (Nombre: "Input.ResponsableId", Id: formId + "-resp", Seleccionado: i.ResponsableId, Opciones: Model.Responsables, Deshabilitado: off);
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        @if (Model.EsNuevo)
+        {
+            <span class="gas-modal__icon">@Iconos.Svg("box")</span>
+            <div>
+                <h2 class="modal-title">Nuevo producto</h2>
+                <div class="gas-modal__subtitle">Registra un producto del portafolio de Global App Suite.</div>
+            </div>
+        }
+        else
+        {
+            <span class="gas-avatar gas-avatar--lg @Avatar.Clase(i.Nombre)" style="border-radius: 12px;">@Avatar.Iniciales(i.Nombre)</span>
+            <div class="min-w-0">
+                <h2 class="modal-title">@i.Nombre</h2>
+                <div class="gas-badges mt-2">
+                    <span class="gas-badge @Etiquetas.Badge(i.Estado)">@Etiquetas.Texto(i.Estado)</span>
+                    <span class="gas-chip gas-chip--info" style="pointer-events: none; padding-top: 2px; padding-bottom: 2px;">@Iconos.Svg("building") Clientes <span class="gas-chip__count">@Model.Clientes</span></span>
+                    <span class="gas-chip gas-chip--violet" style="pointer-events: none; padding-top: 2px; padding-bottom: 2px;">@Iconos.Svg("plug") Servicios <span class="gas-chip__count">@Model.Servicios</span></span>
+                    <partial name="_Trazabilidad" model="(Model.CreadoUtc, Model.CreadoPor, Model.ModificadoUtc, Model.ModificadoPor)" />
+                </div>
+            </div>
+        }
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Productos/Index"
+              asp-page-handler="@(Model.EsNuevo ? "Crear" : "Guardar")" asp-route-id="@Model.Id">
+            <input type="hidden" name="Estado" value="@Model.Filtro" />
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Datos generales</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-nombre">Nombre</label>
+                                    <input id="@formId-nombre" name="Input.Nombre" value="@i.Nombre" class="form-control" maxlength="100" disabled="@off" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-web">Sitio web</label>
+                                    <input id="@formId-web" name="Input.SitioWeb" value="@i.SitioWeb" class="form-control" placeholder="https://" disabled="@off" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-desc">Descripción</label>
+                                    <textarea id="@formId-desc" name="Input.Descripcion" class="form-control" rows="2" maxlength="500" disabled="@off">@i.Descripcion</textarea>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-estado">Estado</label>
+                                    <select id="@formId-estado" name="Input.Estado" class="form-select" disabled="@off">
+                                        @foreach (var e in Etiquetas.Valores<EstadoProducto>())
+                                        {
+                                            <option value="@e" selected="@(e == i.Estado)">@Etiquetas.Texto(e)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-modalidad">Modalidad</label>
+                                    <select id="@formId-modalidad" name="Input.Modalidad" class="form-select" disabled="@off">
+                                        @foreach (var m in Etiquetas.Valores<ModalidadProducto>())
+                                        {
+                                            <option value="@m" selected="@(m == i.Modalidad)">@Etiquetas.Texto(m)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-resp">Responsable técnico</label>
+                                    <partial name="_SelectResponsable" model="responsable" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("monitor") Plataformas e integración</h2></div>
+                        <div class="gas-card__body">
+                            <div class="gas-options" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+                                <label class="gas-option">
+                                    <input type="checkbox" class="form-check-input" name="Input.TieneWeb" value="true" checked="@i.TieneWeb" disabled="@off" />
+                                    <input type="hidden" name="Input.TieneWeb" value="false" />
+                                    <span><strong>Web</strong><span>Aplicación web</span></span>
+                                </label>
+                                <label class="gas-option">
+                                    <input type="checkbox" class="form-check-input" name="Input.TieneApp" value="true" checked="@i.TieneApp" disabled="@off" />
+                                    <input type="hidden" name="Input.TieneApp" value="false" />
+                                    <span><strong>App</strong><span>iOS / Android</span></span>
+                                </label>
+                                <label class="gas-option">
+                                    <input type="checkbox" class="form-check-input" name="Input.UsaStripe" value="true" checked="@i.UsaStripe" disabled="@off" />
+                                    <input type="hidden" name="Input.UsaStripe" value="false" />
+                                    <span><strong>Stripe</strong><span>Cobro con Stripe</span></span>
+                                </label>
+                            </div>
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-5">
+                                    <label class="form-label" for="@formId-sa">Super-admin</label>
+                                    <select id="@formId-sa" name="Input.SuperAdmin" class="form-select" disabled="@off">
+                                        @foreach (var s in Etiquetas.Valores<EstadoSuperAdmin>())
+                                        {
+                                            <option value="@s" selected="@(s == i.SuperAdmin)">@Etiquetas.Texto(s)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-7">
+                                    <label class="form-label" for="@formId-saurl">URL del super-admin</label>
+                                    <input id="@formId-saurl" name="Input.SuperAdminUrl" value="@i.SuperAdminUrl" class="form-control" placeholder="https://" disabled="@off" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-12">
+                    <section class="gas-card">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("note") Notas</h2></div>
+                        <div class="gas-card__body">
+                            <textarea name="Input.Notas" class="form-control" rows="2" maxlength="2000" disabled="@off"
+                                      placeholder="Observaciones, pendientes de documentar, decisiones…">@i.Notas</textarea>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <div class="dropup">
+                <button type="button" class="btn btn-gas-outline" data-bs-toggle="dropdown" aria-expanded="false">@Iconos.Svg("lock") Acciones</button>
+                <div class="dropdown-menu">
+                    @if (!string.IsNullOrEmpty(i.SitioWeb))
+                    {
+                        <a class="dropdown-item" href="@i.SitioWeb" target="_blank" rel="noopener">@Iconos.Svg("external") Abrir sitio web</a>
+                    }
+                    @if (!string.IsNullOrEmpty(i.SuperAdminUrl))
+                    {
+                        <a class="dropdown-item" href="@i.SuperAdminUrl" target="_blank" rel="noopener">@Iconos.Svg("external") Abrir super-admin</a>
+                    }
+                    @if (!string.IsNullOrEmpty(i.SitioWeb) || !string.IsNullOrEmpty(i.SuperAdminUrl))
+                    {
+                        <div class="dropdown-divider"></div>
+                    }
+                    <form method="post" asp-page="/Productos/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id"
+                          data-confirm-title="¿Eliminar @i.Nombre?"
+                          data-confirm="Solo se puede eliminar si no tiene clientes ni servicios ligados. Si ya no se ofrece, márcalo como Retirado."
+                          data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                        <button type="submit" class="dropdown-item text-danger">@Iconos.Svg("trash") Eliminar</button>
+                    </form>
+                </div>
+            </div>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">
+                    @if (Model.EsNuevo)
+                    {
+                        @Iconos.Svg("check") <span>Crear producto</span>
+                    }
+                    else
+                    {
+                        @Iconos.Svg("save") <span>Guardar cambios</span>
+                    }
+                </button>
+            }
+        </div>
+    </div>
+</div>

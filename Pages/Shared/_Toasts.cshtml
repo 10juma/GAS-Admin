@@ -1,0 +1,19 @@
+@using GAS.Admin.Infrastructure.Toasts
+@*
+    Junta los toasts guardados en TempData y los errores de validación
+    (ModelState) y los entrega al script de toasts. No dibuja errores en pantalla.
+*@
+@{
+    var toasts = TempData.ReadToasts();
+
+    var validationErrors = ViewData.ModelState.Values
+        .SelectMany(entry => entry.Errors)
+        .Select(error => error.ErrorMessage)
+        .Where(message => !string.IsNullOrWhiteSpace(message))
+        .Distinct()
+        .Select(message => new Toast("error", message));
+
+    var all = toasts.Concat(validationErrors).ToList();
+}
+<div id="gas-toasts" class="gas-toasts" aria-live="polite" aria-atomic="false"></div>
+<script type="application/json" id="gas-toasts-data">@Json.Serialize(all)</script>

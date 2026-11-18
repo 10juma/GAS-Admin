@@ -1,0 +1,46 @@
+@* Lista de archivos con subida (trabajo, entregable o tarea). *@
+@model (List<GAS.Admin.Models.Entities.Adjunto> Archivos, int? TrabajoId, int? EntregableId, int? TareaId, string? Volver, bool PuedeGestionar)
+@{
+    string Tamano(long b) => b < 1024 * 1024 ? $"{Math.Max(1, b / 1024)} KB" : $"{b / 1024d / 1024d:0.#} MB";
+}
+@if (Model.Archivos.Count == 0)
+{
+    <div class="gas-empty py-3">@Iconos.Svg("note") Sin archivos.</div>
+}
+else
+{
+    <ul class="gas-timeline">
+        @foreach (var a in Model.Archivos)
+        {
+            <li style="align-items: center;">
+                <span class="gas-stat__icon" style="width: 32px; height: 32px; border-radius: 9px;">@Iconos.Svg("note")</span>
+                <div class="gas-timeline__body">
+                    <a href="@Url.Page("/Proyectos/Archivos/Index", "Descargar", new { id = a.Id })" class="text-decoration-none"><strong>@a.NombreOriginal</strong></a>
+                    <span>@Tamano(a.Tamano) · @(a.SubidoPor ?? "") · @Fechas.Relativo(a.FechaUtc).ToLowerInvariant()</span>
+                </div>
+                @if (Model.PuedeGestionar)
+                {
+                    <form method="post" asp-page="/Proyectos/Archivos/Index" asp-page-handler="Eliminar" asp-route-id="@a.Id" asp-route-volver="@Model.Volver"
+                          data-confirm-title="¿Eliminar @a.NombreOriginal?" data-confirm="El archivo se borrará de forma permanente."
+                          data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                        <button type="submit" class="gas-icon-btn" style="width: 30px; height: 30px;" aria-label="Eliminar archivo">@Iconos.Svg("trash")</button>
+                    </form>
+                }
+            </li>
+        }
+    </ul>
+}
+@if (Model.PuedeGestionar)
+{
+    <form method="post" enctype="multipart/form-data" asp-page="/Proyectos/Archivos/Index" asp-page-handler="Subir"
+          class="d-flex gap-2 align-items-center flex-wrap px-3 pb-3 pt-2" data-subida>
+        <input type="hidden" name="trabajoId" value="@Model.TrabajoId" />
+        <input type="hidden" name="entregableId" value="@Model.EntregableId" />
+        <input type="hidden" name="tareaId" value="@Model.TareaId" />
+        <input type="hidden" name="volver" value="@Model.Volver" />
+        <input type="file" name="archivo" class="form-control form-control-sm" style="max-width: 320px;"
+               accept="@GAS.Admin.Services.Archivos.TiposPermitidos.Lista.Replace(" ", "")" required data-max-mb="25" aria-label="Archivo" />
+        <button type="submit" class="btn btn-sm btn-gas-outline">@Iconos.Svg("plus") Subir</button>
+        <span class="form-text m-0">Máx. 25 MB · PDF, Office, imágenes, texto o ZIP</span>
+    </form>
+}

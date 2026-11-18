@@ -1,0 +1,64 @@
+@page
+@model GAS.Admin.Pages.Organizacion.Empresa.IndexModel
+@{
+    ViewData["Title"] = "Datos de la empresa";
+    ViewData["Seccion"] = "Organización";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var e = Model.Empresa;
+    string V(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+    var faltantes = new[] { e.RazonSocial, e.Rfc, e.Domicilio, e.Correo }.Count(string.IsNullOrWhiteSpace);
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Datos de la empresa</h1>
+        <p>Información formal de Global App Suite para documentos y comunicaciones.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Editar")">@Iconos.Svg("pencil") Editar datos</button>
+    }
+</div>
+
+@if (faltantes > 0)
+{
+    <div class="gas-callout">
+        <div class="gas-callout__text">
+            <strong>Faltan datos formales</strong>
+            Completa razón social, RFC, domicilio y correo para que aparezcan en los PDF de cotización.
+        </div>
+    </div>
+}
+
+<div class="gas-grid gas-grid--2">
+    <section class="gas-card">
+        <div class="gas-card__header"><h2>@Iconos.Svg("building") Identidad</h2></div>
+        <div class="gas-card__body">
+            <dl class="gas-meta">
+                <dt>Nombre comercial</dt><dd>@V(e.NombreComercial)</dd>
+                <dt>Lema</dt><dd>@V(e.Lema)</dd>
+                <dt>Razón social</dt><dd>@V(e.RazonSocial)</dd>
+                <dt>RFC</dt><dd>@V(e.Rfc)</dd>
+                <dt>Régimen fiscal</dt><dd>@V(e.RegimenFiscal)</dd>
+            </dl>
+        </div>
+    </section>
+    <section class="gas-card">
+        <div class="gas-card__header"><h2>@Iconos.Svg("mail") Domicilio y contacto</h2></div>
+        <div class="gas-card__body">
+            <dl class="gas-meta">
+                <dt>Domicilio fiscal</dt><dd>@V(e.Domicilio)@(string.IsNullOrWhiteSpace(e.CodigoPostal) ? "" : ", C.P. " + e.CodigoPostal)</dd>
+                <dt>Teléfono</dt><dd>@V(e.Telefono)</dd>
+                <dt>Correo</dt><dd>@V(e.Correo)</dd>
+                <dt>Sitio web</dt><dd>@V(e.SitioWeb)</dd>
+            </dl>
+        </div>
+    </section>
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_EmpresaModal" model="Model.Modal" />
+    }
+}

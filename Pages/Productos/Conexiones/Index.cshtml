@@ -1,0 +1,140 @@
+@page
+@model GAS.Admin.Pages.Productos.Conexiones.IndexModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Productos conectados";
+    ViewData["Seccion"] = "Productos";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    string N(int v) => v.ToString("#,0", CultureInfo.GetCultureInfo("es-MX"));
+    string Delta(int hoy, int? antes) => antes is null ? "" : (hoy - antes.Value) switch { > 0 and var d => $"+{N(d)}", < 0 and var d => $"−{N(-d)}", _ => "=" };
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Productos conectados</h1>
+        <p>Estado, versión y uso de cada producto, leídos de su API GAS v1. Desde aquí también se abre su super-admin con acceso firmado.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <div class="gas-page-header__actions">
+            @if (Model.Tarjetas.Count > 0)
+            {
+                <form method="post" asp-page-handler="Sincronizar" class="d-inline">
+                    <button type="submit" class="btn btn-gas-outline">@Iconos.Svg("refresh") Sincronizar todos</button>
+                </form>
+            }
+            @if (Model.SinConexion.Count > 0) { <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nueva")">@Iconos.Svg("plug") Conectar producto</button> }
+        </div>
+    }
+</div>
+
+@if (Model.SinConexion.Count > 0)
+{
+    <div class="gas-callout">
+        <span class="gas-stat__icon">@Iconos.Svg("note")</span>
+        <div class="gas-callout__text">
+            <strong>Sin conectar: @string.Join(", ", Model.SinConexion)</strong>
+            Cada producto debe implementar la API GAS v1 (estado, métricas, cuentas, acciones y acceso firmado). La especificación está en <code>docs/api-gas-v1.md</code> del proyecto GAS-Admin.
+        </div>
+    </div>
+}
+
+@if (Model.Tarjetas.Count == 0)
+{
+    <div class="gas-card"><div class="gas-empty">@Iconos.Svg("plug") Ningún producto conectado todavía.</div></div>
+}
+
+<div class="gas-grid gas-grid--2">
+    @foreach (var t in Model.Tarjetas)
+    {
+        var c = t.Conexion;
+        var m = t.Hoy;
+        var maxTend = t.Tendencia.Select(x => x.Activos).DefaultIfEmpty(0).Max();
+        <section class="gas-card">
+            <div class="gas-card__header">
+                <div>
+                    <h2>@Iconos.Svg("box") @c.Producto.Nombre</h2>
+                    <p>@c.UrlApi</p>
+                </div>
+                <div class="gas-badges">
+                    @if (!t.Secreto) { <span class="gas-badge gas-badge--danger">@Iconos.Svg("key") Falta secreto</span> }
+                    else if (c.UltimoError is not null) { <span class="gas-badge gas-badge--danger">@Iconos.Svg("alert") Sin conexión</span> }
+                    else if (c.EstadoOk == true) { <span class="gas-badge gas-badge--success">@Iconos.Svg("check") Operando</span> }
+                    else if (c.EstadoOk == false) { <span class="gas-badge gas-badge--warning">@Iconos.Svg("alert") Con fallas</span> }
+                    else { <span class="gas-badge gas-badge--plain">Sin sincronizar</span> }
+                    @if (c.Version is not null) { <span class="gas-badge gas-badge--plain">v@(c.Version.TrimStart('v'))</span> }
+                    @if (!c.Activa) { <span class="gas-badge gas-badge--plain">Pausada</span> }
+                </div>
+            </div>
+            <div class="gas-card__body">
+                @if (c.UltimoError is not null)
+                {
+                    <div class="small text-danger mb-3">@Iconos.Svg("alert") @c.UltimoError</div>
+                }
+                @if (m is not null)
+                {
+                    <div class="row g-3 mb-3">
+                        <div class="col-4"><div class="gas-stat__label">Cuentas activas</div><div class="fs-4 fw-bold">@N(m.CuentasActivas)</div><div class="small text-muted">@N(m.CuentasEnPrueba) en prueba · @N(m.CuentasSuspendidas) susp.</div></div>
+                        <div class="col-4"><div class="gas-stat__label">Usuarios activos</div><div class="fs-4 fw-bold">@N(m.UsuariosActivos24h)</div><div class="small text-muted">hoy · @N(m.UsuariosActivos30d) en 30 días</div></div>
+                        <div class="col-4"><div class="gas-stat__label">Altas / bajas 30 d</div><div class="fs-4 fw-bold"><span class="text-success">+@N(m.Altas30d)</span> <span class="text-danger">−@N(m.Bajas30d)</span></div><div class="small text-muted">@(t.Hace30 is null ? "" : $"activas {Delta(m.CuentasActivas, t.Hace30?.CuentasActivas)} vs hace 30 d")</div></div>
+                    </div>
+                    @if (t.Adicionales.Count > 0)
+                    {
+                        <dl class="gas-totales__lista mb-3">
+                            @foreach (var a in t.Adicionales)
+                            {
+                                <dt>@a.Nombre</dt><dd>@(a.Unidad is "MXN" or "USD" ? Etiquetas.Dinero(a.Valor, a.Unidad) : $"{a.Valor.ToString("#,0.##", CultureInfo.GetCultureInfo("es-MX"))} {a.Unidad}")</dd>
+                            }
+                        </dl>
+                    }
+                    @if (t.Tendencia.Count >= 2)
+                    {
+                        <div class="gas-stat__label mb-1">Usuarios activos por día</div>
+                        <div class="gas-barras" style="height: 60px;" role="img" aria-label="Usuarios activos por día">
+                            @foreach (var (fecha, activos) in t.Tendencia)
+                            {
+                                <span style="height: @(maxTend <= 0 ? "2" : Math.Max(2, Math.Round(activos * 100.0 / maxTend, 1)).ToString(CultureInfo.InvariantCulture))%" title="@fecha.ToString("dd/MM") · @N(activos)"></span>
+                            }
+                        </div>
+                    }
+                }
+                @if (t.Dependencias.Count > 0)
+                {
+                    <div class="gas-badges mt-3">
+                        @foreach (var d in t.Dependencias)
+                        {
+                            <span class="gas-badge @(d.Ok ? "gas-badge--success" : "gas-badge--danger")" title="@d.Detalle">@Iconos.Svg(d.Ok ? "check" : "x") @d.Nombre</span>
+                        }
+                    </div>
+                }
+                <div class="small text-muted mt-3">
+                    @(c.UltimaSincronizacionUtc is null ? "Aún no se sincroniza." : $"Sincronizado {Fechas.Relativo(c.UltimaSincronizacionUtc).ToLowerInvariant()}")
+                    @(c.LatenciaMs is null ? "" : $" · responde en {c.LatenciaMs} ms")@(c.Ambiente is null ? "" : $" · {c.Ambiente}")
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <a asp-page="/Productos/Cuentas/Index" asp-route-producto="@c.ProductoId" class="btn btn-sm btn-gas-outline">@Iconos.Svg("users") Cuentas</a>
+                    @if (Model.PuedeGestionar)
+                    {
+                        <form method="post" asp-page-handler="Sincronizar" asp-route-id="@c.Id" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-gas-outline">@Iconos.Svg("refresh") Sincronizar</button>
+                        </form>
+                        @if (c.UrlSuperAdmin is not null && t.Secreto)
+                        {
+                            <form method="post" asp-page-handler="SuperAdmin" asp-route-id="@c.Id" target="_blank" class="d-inline" data-sin-espera>
+                                <button type="submit" class="btn btn-sm btn-gas">@Iconos.Svg("external") Abrir super-admin</button>
+                            </form>
+                        }
+                    }
+                    <button type="button" class="btn btn-sm btn-gas-outline ms-auto" data-modal-url="@Url.Page("Index", "Editar", new { id = c.Id })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Configurar" : "Ver")</button>
+                </div>
+            </div>
+        </section>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_ConexionModal" model="Model.Modal" />
+    }
+}

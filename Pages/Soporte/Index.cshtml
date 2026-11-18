@@ -1,0 +1,127 @@
+@page
+@model GAS.Admin.Pages.Soporte.IndexModel
+@using GAS.Admin.Services.Soporte
+@{
+    ViewData["Title"] = "Tickets";
+    ViewData["Seccion"] = "Atención al cliente";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var vista = Model.Vista ?? "abiertos";
+    Dictionary<string, string> Ruta(string? v, int? producto) => new Dictionary<string, string?>
+        { ["vista"] = v, ["producto"] = producto?.ToString(), ["buscar"] = Model.Buscar }
+        .Where(x => !string.IsNullOrEmpty(x.Value)).ToDictionary(x => x.Key, x => x.Value!);
+    var chips = new (string Clave, string Texto, string Tono)[]
+    {
+        ("abiertos", "Abiertos", "gas-chip--info"), ("mios", "Míos", "gas-chip--violet"), ("sinasignar", "Sin asignar", "gas-chip--warning"),
+        ("vencidos", "SLA vencido", "gas-chip--danger"), ("espera", "Esperando al cliente", "gas-chip--warning"), ("escalados", "Escalados", "gas-chip--violet"),
+        ("resueltos", "Resueltos", "gas-chip--success"), ("todos", "Todos", "gas-chip--dark")
+    };
+    string Restante(DateTime? limite)
+    {
+        if (limite is null) return "";
+        var r = limite.Value - Model.Ahora;
+        return r.TotalMinutes < 0 ? $"vencido hace {ServicioSoporte.Duracion(-r)}" : $"quedan {ServicioSoporte.Duracion(r)}";
+    }
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Tickets</h1>
+        <p>Solicitudes de clientes y de los usuarios de los productos: llegan por captura, desde cada producto o por correo, y se atienden con tiempos de servicio.</p>
+    </div>
+    <div class="gas-page-header__actions">
+        <button type="button" class="btn btn-gas-outline" data-modal-url="@Url.Page("Index", "Sla")">@Iconos.Svg("clock") Tiempos de servicio</button>
+        @if (Model.PuedeGestionar) { <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Nuevo ticket</button> }
+    </div>
+</div>
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <a asp-page="Index" asp-all-route-data="@Ruta(null, Model.Producto)" class="gas-card gas-stat gas-stat--info text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("note")</span>
+        <div><div class="gas-stat__label">Abiertos</div><div class="gas-stat__value">@Model.Conteos["abiertos"]</div><div class="gas-stat__hint">@Model.Conteos["sinasignar"] sin asignar · @Model.Conteos["mios"] míos</div></div>
+    </a>
+    <a asp-page="Index" asp-all-route-data="@Ruta("vencidos", Model.Producto)" class="gas-card gas-stat @(Model.Conteos["vencidos"] > 0 ? "gas-stat--danger" : "gas-stat--muted") text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div><div class="gas-stat__label">SLA vencido</div><div class="gas-stat__value">@Model.Conteos["vencidos"]</div><div class="gas-stat__hint">sin primera respuesta o sin resolver a tiempo</div></div>
+    </a>
+    <div class="gas-card gas-stat gas-stat--violet">
+        <span class="gas-stat__icon">@Iconos.Svg("clock")</span>
+        <div><div class="gas-stat__label">Primera respuesta</div><div class="gas-stat__value">@(Model.PrimeraRespuestaPromedio is null ? "—" : ServicioSoporte.Duracion(Model.PrimeraRespuestaPromedio.Value))</div><div class="gas-stat__hint">promedio · @(Model.CumplimientoSla is null ? "sin datos de SLA" : $"{Model.CumplimientoSla.Value * 100:0.#}% dentro del SLA") (30 d)</div></div>
+    </div>
+    <a asp-page="Index" asp-all-route-data="@Ruta("resueltos", Model.Producto)" class="gas-card gas-stat gas-stat--success text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("check")</span>
+        <div><div class="gas-stat__label">Resueltos en 7 días</div><div class="gas-stat__value">@Model.Resueltos7d</div><div class="gas-stat__hint">@Model.Conteos["escalados"] escalado(s) a Proyectos</div></div>
+    </a>
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Vista">
+            @foreach (var (clave, texto, tono) in chips)
+            {
+                <a asp-page="Index" asp-all-route-data="@Ruta(clave == "abiertos" ? null : clave, Model.Producto)" class="gas-chip @tono @(vista == clave ? "is-active" : "")">@texto <span class="gas-chip__count">@Model.Conteos.GetValueOrDefault(clave)</span></a>
+            }
+        </nav>
+        <form method="get" class="gas-filters">
+            @if (Model.Vista is not null) { <input type="hidden" name="vista" value="@Model.Vista" /> }
+            <select name="producto" class="form-select form-select-sm" aria-label="Producto" style="max-width: 190px;" onchange="this.form.requestSubmit()">
+                <option value="">Todos los productos</option>
+                @foreach (var p in Model.Productos) { <option value="@p.Id" selected="@(p.Id == Model.Producto)">@p.Nombre</option> }
+            </select>
+            <div class="gas-input-icon">
+                @Iconos.Svg("search")
+                <input type="search" name="buscar" value="@Model.Buscar" class="form-control form-control-sm" placeholder="Folio, asunto, contacto o texto…" aria-label="Buscar" />
+            </div>
+        </form>
+    </div>
+    @if (Model.Tickets.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("check") @(vista == "abiertos" ? "Sin tickets abiertos." : "No hay tickets en esta vista.")</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Ticket</th><th>De</th><th>Prioridad</th><th>SLA</th><th>Estado</th><th>Asignado</th><th>Actividad</th></tr></thead>
+                <tbody>
+                    @foreach (var f in Model.Tickets)
+                    {
+                        var t = f.Ticket;
+                        var vencido = t.SlaVencido(Model.Ahora);
+                        <tr style="@(t.Abierto ? "" : "opacity: .65;")">
+                            <td style="max-width: 420px;">
+                                <a asp-page="/Soporte/Detalle/Index" asp-route-id="@t.Id" class="text-decoration-none">
+                                    <div class="gas-person__text">
+                                        <span class="gas-person__name" style="white-space: normal;">@t.Folio · @t.Asunto</span>
+                                        <span class="gas-badges mt-1">
+                                            <span class="gas-badge gas-badge--plain">@Iconos.Svg(ServicioSoporte.IconoCanal(t.Canal)) @ServicioSoporte.TextoCanal(t.Canal)</span>
+                                            <span class="gas-badge gas-badge--plain">@ServicioSoporte.TextoCategoria(t.Categoria)</span>
+                                            <span class="small text-muted">@f.Mensajes mensaje(s)</span>
+                                        </span>
+                                    </div>
+                                </a>
+                            </td>
+                            <td>@(f.Para ?? "—")<div class="small text-muted">@f.Producto</div></td>
+                            <td><span class="gas-badge @Etiquetas.Badge(t.Prioridad)">@Etiquetas.Texto(t.Prioridad)</span></td>
+                            <td class="text-nowrap small">
+                                @if (!t.Abierto) { <span class="text-muted">—</span> }
+                                else if (t.PrimeraRespuestaUtc is null) { <span class="@(t.PrimeraRespuestaVencida(Model.Ahora) ? "text-danger fw-semibold" : "")">1.ª resp.: @Restante(t.VencePrimeraRespuestaUtc)</span> }
+                                else { <span class="@(t.ResolucionVencida(Model.Ahora) ? "text-danger fw-semibold" : "")">Resolver: @Restante(t.VenceResolucionUtc)</span> }
+                            </td>
+                            <td><span class="gas-badge @ServicioSoporte.TonoEstado(t.Estado)">@ServicioSoporte.TextoEstado(t.Estado)</span>@if (vencido) { <span class="gas-badge gas-badge--danger ms-1">@Iconos.Svg("alert")</span> }</td>
+                            <td>@if (f.Asignado is not null) { <span class="gas-avatar gas-avatar--sm @Avatar.Clase(f.Asignado)" title="@f.Asignado">@Avatar.Iniciales(f.Asignado)</span> } else { <span class="gas-badge gas-badge--warning">Sin asignar</span> }</td>
+                            <td class="text-nowrap small text-muted">@Fechas.Relativo(t.UltimaActividadUtc)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.HayMas) { <div class="gas-pager">Se muestran los primeros 300. Usa la búsqueda o los filtros para acotar.</div> }
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_TicketModal" model="Model.Modal" />
+    }
+}

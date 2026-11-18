@@ -1,0 +1,173 @@
+@page
+@model GAS.Admin.Pages.Proyectos.Horas.IndexModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Registro de horas";
+    ViewData["Seccion"] = "Proyectos";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var mx = new CultureInfo("es-MX");
+    var domingo = Model.Lunes.AddDays(6);
+    var volver = Url.Page("Index", new { semana = Model.Lunes.ToString("yyyy-MM-dd"), persona = Model.Persona })!;
+    var hoy = GAS.Admin.Services.Proyectos.ServicioTrabajos.Hoy;
+    string Costo(Dictionary<string, decimal> d) => d.Count == 0 ? "—" : string.Join(" + ", d.OrderBy(x => x.Key).Select(x => Etiquetas.Dinero(x.Value, x.Key)));
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Registro de horas</h1>
+        <p>Horas por persona y trabajo. Base del costo real de proyectos y productos.</p>
+    </div>
+    <div class="gas-page-header__actions">
+        <a asp-page="Index" asp-route-semana="@Model.Lunes.AddDays(-7).ToString("yyyy-MM-dd")" asp-route-persona="@Model.Persona" class="btn btn-gas-outline">@Iconos.Svg("arrow-left")</a>
+        <span class="gas-badge gas-badge--plain" style="font-size: 13px; padding: 6px 12px;">@Iconos.Svg("calendar") @Model.Lunes.ToString("dd MMM", mx) – @domingo.ToString("dd MMM yyyy", mx)</span>
+        <a asp-page="Index" asp-route-semana="@Model.Lunes.AddDays(7).ToString("yyyy-MM-dd")" asp-route-persona="@Model.Persona" class="btn btn-gas-outline">@Iconos.Svg("arrow-right")</a>
+        @if (Model.PuedeRegistrar)
+        {
+            <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo", new { volver })">@Iconos.Svg("plus") Registrar horas</button>
+        }
+    </div>
+</div>
+
+@if (!Model.PuedeRegistrar)
+{
+    <div class="gas-callout">
+        <div class="gas-callout__text"><strong>Tu usuario no está ligado a una persona del equipo</strong> Pide que te liguen en Organización › Equipo para registrar tus horas.</div>
+    </div>
+}
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <div class="gas-card gas-stat gas-stat--violet">
+        <span class="gas-stat__icon">@Iconos.Svg("clock")</span>
+        <div><div class="gas-stat__label">Horas de la semana</div><div class="gas-stat__value">@Model.TotalSemana.ToString("0.#")</div><div class="gas-stat__hint">@Model.Registros.Count registros</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("users")</span>
+        <div><div class="gas-stat__label">Capacidad</div><div class="gas-stat__value">@Model.Cargas.Sum(c => c.Persona.HorasSemana ?? 0) h</div><div class="gas-stat__hint">horas disponibles por semana</div></div>
+    </div>
+    <div class="gas-card gas-stat">
+        <span class="gas-stat__icon">@Iconos.Svg("layers")</span>
+        <div><div class="gas-stat__label">Trabajos con horas</div><div class="gas-stat__value">@Model.PorTrabajo.Count</div><div class="gas-stat__hint">esta semana</div></div>
+    </div>
+    @if (Model.VerCosto)
+    {
+        <div class="gas-card gas-stat gas-stat--warning">
+            <span class="gas-stat__icon">@Iconos.Svg("dollar")</span>
+            <div class="min-w-0"><div class="gas-stat__label">Costo de la semana</div><div class="gas-stat__value" style="font-size: 20px; line-height: 1.25;">@Costo(Model.CostoSemana)</div><div class="gas-stat__hint">con el costo vigente al registrar</div></div>
+        </div>
+    }
+    else
+    {
+        <div class="gas-card gas-stat gas-stat--muted"><span class="gas-stat__icon">@Iconos.Svg("lock")</span><div><div class="gas-stat__label">Costo</div><div class="gas-stat__value" style="font-size: 18px;">Restringido</div><div class="gas-stat__hint">requiere permiso de Finanzas</div></div></div>
+    }
+</div>
+
+<section class="gas-card mb-4">
+    <div class="gas-card__header">
+        <div><h2>@Iconos.Svg("users") Carga por persona</h2><p>Horas por día contra la capacidad semanal.</p></div>
+        <form method="get" class="d-flex gap-2">
+            <input type="hidden" name="semana" value="@Model.Lunes.ToString("yyyy-MM-dd")" />
+            <select name="persona" class="form-select form-select-sm" onchange="this.form.requestSubmit()" aria-label="Persona" style="min-width: 200px;">
+                <option value="">Todo el equipo</option>
+                @foreach (var p in Model.Personas) { <option value="@p.Id" selected="@(p.Id == Model.Persona)">@p.Nombre</option> }
+            </select>
+        </form>
+    </div>
+    @if (Model.Cargas.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("users") No hay personas activas en el equipo. Agrégalas en Organización › Equipo.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr>
+                        <th>Persona</th>
+                        @for (var d = 0; d < 7; d++)
+                        {
+                            var dia = Model.Lunes.AddDays(d);
+                            <th class="text-center @(dia == hoy ? "text-dark" : "")">@dia.ToString("ddd dd", mx)</th>
+                        }
+                        <th style="min-width: 200px;">Semana</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in Model.Cargas)
+                    {
+                        var cap = c.Persona.HorasSemana ?? 0;
+                        var pct = cap > 0 ? (int)Math.Min(100, Math.Round(c.Horas / cap * 100)) : 0;
+                        <tr>
+                            <td>
+                                <div class="gas-person">
+                                    <span class="gas-avatar gas-avatar--sm @Avatar.Clase(c.Persona.NombreCompleto)">@Avatar.Iniciales(c.Persona.NombreCompleto)</span>
+                                    <span class="gas-person__name">@c.Persona.NombreCompleto</span>
+                                </div>
+                            </td>
+                            @foreach (var h in c.PorDia)
+                            {
+                                <td class="text-center">@(h is null ? "·" : h.Value.ToString("0.##"))</td>
+                            }
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="gas-progress flex-grow-1"><span style="width: @pct%; @(cap > 0 && c.Horas > cap ? "background: var(--gas-danger);" : "")"></span></div>
+                                    <span class="small text-muted text-nowrap">@c.Horas.ToString("0.#")@(cap > 0 ? $"/{cap}" : "") h</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="gas-card">
+    <div class="gas-card__header"><h2>@Iconos.Svg("note") Registros de la semana</h2></div>
+    @if (Model.Registros.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("clock") Sin horas registradas esta semana.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr><th>Fecha</th><th>Persona</th><th>Trabajo y tarea</th><th>Nota</th><th class="text-end">Horas</th>@if (Model.VerCosto) { <th class="text-end">Costo</th> }<th class="text-end"></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var h in Model.Registros)
+                    {
+                        var editable = Model.Gestiona || (Model.MiPersona is not null && h.PersonaId == Model.MiPersona.Id);
+                        <tr>
+                            <td class="text-nowrap">@h.Fecha.ToString("ddd dd/MM", mx)</td>
+                            <td>@h.Persona.NombreCompleto</td>
+                            <td>
+                                <div class="gas-person__text">
+                                    @if (h.Trabajo is not null) { <a asp-page="/Proyectos/Detalle/Index" asp-route-id="@h.TrabajoId" class="text-decoration-none">@h.Trabajo.Folio · @h.Trabajo.Nombre</a> }
+                                    else { <span>Sin trabajo</span> }
+                                    <span class="gas-person__email">@(h.Tarea?.Titulo ?? "")</span>
+                                </div>
+                            </td>
+                            <td class="gas-col-detalle">@(h.Nota ?? "")</td>
+                            <td class="text-end"><strong>@h.Horas.ToString("0.##")</strong></td>
+                            @if (Model.VerCosto) { <td class="text-end">@(h.Costo is null ? "—" : Etiquetas.Dinero(h.Costo, h.MonedaCosto ?? "MXN"))</td> }
+                            <td class="text-end">
+                                @if (editable)
+                                {
+                                    <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = h.Id, volver })">@Iconos.Svg("pencil")</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_HorasModal" model="Model.Modal" />
+    }
+}

@@ -1,0 +1,118 @@
+@page
+@model GAS.Admin.Pages.Comercial.Oportunidades.IndexModel
+@{
+    ViewData["Title"] = "Oportunidades";
+    ViewData["Seccion"] = "Comercial";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    string Dinero(Dictionary<string, decimal> d) => d.Count == 0 ? "—" : string.Join(" + ", d.OrderBy(x => x.Key).Select(x => Etiquetas.Dinero(x.Value, x.Key)));
+    var hoy = DateOnly.FromDateTime(Fechas.ALocal(DateTime.UtcNow));
+}
+
+@Html.AntiForgeryToken()
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Oportunidades</h1>
+        <p>Embudo comercial. Arrastra las tarjetas para cambiar de etapa.</p>
+    </div>
+    <div class="gas-page-header__actions">
+        <nav class="gas-chips" aria-label="Vista">
+            <a asp-page="Index" class="gas-chip gas-chip--dark @(Model.Vista != "mias" ? "is-active" : "")">Todas <span class="gas-chip__count">@Model.Todas</span></a>
+            <a asp-page="Index" asp-route-vista="mias" class="gas-chip gas-chip--info @(Model.Vista == "mias" ? "is-active" : "")">Mías <span class="gas-chip__count">@Model.Mias</span></a>
+        </nav>
+        @if (Model.PuedeGestionar)
+        {
+            <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Nueva oportunidad</button>
+        }
+    </div>
+</div>
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("activity")</span>
+        <div><div class="gas-stat__label">Oportunidades abiertas</div><div class="gas-stat__value">@Model.Abiertas</div><div class="gas-stat__hint">en el embudo</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--violet">
+        <span class="gas-stat__icon">@Iconos.Svg("dollar")</span>
+        <div class="min-w-0"><div class="gas-stat__label">Valor del embudo</div><div class="gas-stat__value" style="font-size: 20px; line-height: 1.25;">@Dinero(Model.ValorAbierto)</div><div class="gas-stat__hint">ponderado: @Dinero(Model.ValorPonderado)</div></div>
+    </div>
+    <div class="gas-card gas-stat">
+        <span class="gas-stat__icon">@Iconos.Svg("check")</span>
+        <div><div class="gas-stat__label">Tasa de cierre</div><div class="gas-stat__value">@(Model.TasaCierre is null ? "—" : (Model.TasaCierre.Value * 100).ToString("0") + "%")</div><div class="gas-stat__hint">ganadas entre ganadas y perdidas</div></div>
+    </div>
+    <div class="gas-card gas-stat @(Model.Vencidas > 0 ? "gas-stat--warning" : "gas-stat--muted")">
+        <span class="gas-stat__icon">@Iconos.Svg("clock")</span>
+        <div><div class="gas-stat__label">Cierre estimado vencido</div><div class="gas-stat__value">@Model.Vencidas</div><div class="gas-stat__hint">abiertas con fecha pasada</div></div>
+    </div>
+</div>
+
+<div class="gas-kanban" data-kanban data-mover-url="@Url.Page("Index", "Mover")" data-editable="@(Model.PuedeGestionar ? "1" : null)">
+    @foreach (var (etapa, tarjetas) in Model.Columnas)
+    {
+        var tono = Etiquetas.Tono(etapa);
+        <section class="gas-kanban__col" data-etapa="@etapa">
+            <header class="gas-kanban__head">
+                <span class="gas-badge @Etiquetas.Badge(etapa)">@Etiquetas.Texto(etapa)</span>
+                <span class="gas-chip__count" style="--chip: var(--gas-muted); --chip-line: var(--gas-border); border: 1px solid var(--gas-border);" data-conteo>@Model.TotalPorEtapa[etapa]</span>
+                @if (Model.PuedeGestionar && etapa is not (EtapaOportunidad.Ganada or EtapaOportunidad.Perdida))
+                {
+                    <button type="button" class="gas-icon-btn ms-auto" style="width: 28px; height: 28px;" title="Nueva en @Etiquetas.Texto(etapa)"
+                            data-modal-url="@Url.Page("Index", "Nuevo", new { etapa })">@Iconos.Svg("plus")</button>
+                }
+            </header>
+            <div class="gas-kanban__list" data-lista>
+                @foreach (var t in tarjetas)
+                {
+                    var o = t.Op;
+                    var vencida = o.Abierta && o.FechaCierreEstimada < hoy;
+                    <article class="gas-kanban__card" draggable="@(Model.PuedeGestionar ? "true" : "false")" data-id="@o.Id"
+                             data-modal-url="@Url.Page("Index", "Editar", new { id = o.Id })" tabindex="0">
+                        <strong class="gas-kanban__title">@o.Titulo</strong>
+                        <span class="gas-kanban__client">@Iconos.Svg("building") @t.Cliente</span>
+                        <div class="gas-badges">
+                            @if (o.ValorEstimado is not null)
+                            {
+                                <span class="gas-badge gas-badge--violet gas-badge--plain">@Etiquetas.Dinero(o.ValorEstimado, o.Moneda)</span>
+                            }
+                            @if (o.Abierta)
+                            {
+                                <span class="gas-badge gas-badge--plain" data-prob>@o.Probabilidad%</span>
+                            }
+                            @if (o.FechaCierreEstimada is not null && o.Abierta)
+                            {
+                                <span class="gas-badge @(vencida ? "gas-badge--danger" : "gas-badge--plain")">@Iconos.Svg("calendar") @o.FechaCierreEstimada.Value.ToString("dd/MM")</span>
+                            }
+                            @if (t.Cotizaciones > 0)
+                            {
+                                <span class="gas-badge gas-badge--info gas-badge--plain">@Iconos.Svg("note") @t.Cotizaciones</span>
+                            }
+                        </div>
+                        @if (o.Etapa == EtapaOportunidad.Perdida && !string.IsNullOrEmpty(o.MotivoPerdida))
+                        {
+                            <span class="gas-kanban__motivo">@o.MotivoPerdida</span>
+                        }
+                        <footer class="gas-kanban__foot">
+                            @if (t.Responsable is not null)
+                            {
+                                <span class="gas-avatar gas-avatar--sm @Avatar.Clase(t.Responsable)" title="@t.Responsable">@Avatar.Iniciales(t.Responsable)</span>
+                            }
+                            <span class="text-muted small ms-auto">@Etiquetas.Texto(o.Origen)</span>
+                        </footer>
+                    </article>
+                }
+                <div class="gas-kanban__empty">Suelta aquí</div>
+            </div>
+        </section>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_OportunidadModal" model="Model.Modal" />
+    }
+}
+
+@section Scripts {
+    <script src="~/js/kanban.js" asp-append-version="true"></script>
+}

@@ -21,3 +21,12 @@ secrets.json
 
 # Temporales
 *.tmp
+
+# Respaldos
+*.bak
+
+# Archivos subidos (almacén local)
+App_Data/
+
+# Configuración local de herramientas
+.claude/

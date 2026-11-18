@@ -1,0 +1,186 @@
+@model GAS.Admin.Pages.Finanzas.Configuracion.ConfigModalVm
+@using System.Globalization
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = $"form-config-{Model.Tipo}-{Model.Id?.ToString() ?? "nuevo"}";
+    var inv = CultureInfo.InvariantCulture;
+    var (titulo, icono, handler, eliminar) = Model.Tipo switch
+    {
+        "cuenta" => (Model.EsNuevo ? "Nueva cuenta" : Model.Cuenta.Alias, "wallet", "GuardarCuenta", "EliminarCuenta"),
+        "stripe" => (Model.EsNuevo ? "Conectar Stripe" : "Cuenta de Stripe", "card", "GuardarStripe", "EliminarStripe"),
+        "categoria" => (Model.EsNuevo ? $"Nueva categoría de {Etiquetas.Texto(Model.Categoria.Tipo).ToLowerInvariant()}" : Model.Categoria.Nombre, "tag", "GuardarCategoria", "EliminarCategoria"),
+        _ => (Model.EsNuevo ? "Nuevo tipo de cambio" : $"Tipo de cambio del {Model.TipoCambio.Fecha:dd/MM/yyyy}", "swap", "GuardarTipo", "EliminarTipo")
+    };
+}
+<div data-size="md" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg(icono)</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@titulo</h2>
+            @if (Model.Tipo == "cuenta") { <div class="gas-modal__subtitle">Solo alias y últimos 4 dígitos. Nunca números completos ni claves.</div> }
+            @if (Model.Tipo == "tipo") { <div class="gas-modal__subtitle">Pesos por un dólar. Se usa para convertir movimientos en USD.</div> }
+            @if (Model.Tipo == "stripe") { <div class="gas-modal__subtitle">Una cuenta por producto. GAS-Admin solo lee; la API key nunca se guarda en la base de datos.</div> }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Finanzas/Configuracion/Index" asp-page-handler="@handler" asp-route-id="@Model.Id">
+            <section class="gas-card">
+                <div class="gas-card__body">
+                    <div class="row g-3">
+                        @if (Model.Tipo == "cuenta")
+                        {
+                            var c = Model.Cuenta;
+                            <div class="col-12">
+                                <label class="form-label" for="@formId-alias">Alias</label>
+                                <input id="@formId-alias" name="Cuenta.Alias" value="@c.Alias" class="form-control" maxlength="100" disabled="@off" placeholder="Ej. Cuenta operativa" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="@formId-tipo">Tipo</label>
+                                <select id="@formId-tipo" name="Cuenta.Tipo" class="form-select" disabled="@off">
+                                    @foreach (var t in Etiquetas.Valores<TipoCuenta>()) { <option value="@t" selected="@(t == c.Tipo)">@Etiquetas.Texto(t)</option> }
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="@formId-inst">Institución</label>
+                                <input id="@formId-inst" name="Cuenta.Institucion" value="@c.Institucion" class="form-control" maxlength="100" disabled="@off" placeholder="Banco, Stripe…" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="@formId-dig">Últimos 4</label>
+                                <input id="@formId-dig" name="Cuenta.UltimosDigitos" value="@c.UltimosDigitos" class="form-control" maxlength="4" inputmode="numeric" pattern="\d{4}" autocomplete="off" disabled="@off" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="@formId-mon">Moneda</label>
+                                <select id="@formId-mon" name="Cuenta.Moneda" class="form-select" disabled="@off">
+                                    @foreach (var m in GAS.Admin.Services.Finanzas.ServicioFinanzas.Monedas) { <option value="@m" selected="@(m == c.Moneda)">@m</option> }
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="@formId-act">Estado</label>
+                                <select id="@formId-act" name="Cuenta.Activa" class="form-select" disabled="@off">
+                                    <option value="true" selected="@c.Activa">Activa</option>
+                                    <option value="false" selected="@(!c.Activa)">Inactiva</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="@formId-notas">Notas</label>
+                                <textarea id="@formId-notas" name="Cuenta.Notas" class="form-control" rows="2" maxlength="1000" disabled="@off">@c.Notas</textarea>
+                            </div>
+                        }
+                        else if (Model.Tipo == "stripe")
+                        {
+                            var c = Model.Stripe;
+                            var clave = string.IsNullOrEmpty(c.Clave) ? "revendo" : c.Clave;
+                            <div class="col-md-6">
+                                <label class="form-label" for="@formId-prod">Producto</label>
+                                <select id="@formId-prod" name="Stripe.ProductoId" class="form-select" disabled="@off">
+                                    <option value="">Elegir…</option>
+                                    @foreach (var p in Model.Productos) { <option value="@p.Id" selected="@(p.Id == c.ProductoId)">@p.Nombre</option> }
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="@formId-clave">Clave de configuración</label>
+                                <input id="@formId-clave" name="Stripe.Clave" value="@c.Clave" class="form-control" maxlength="50" disabled="@off" placeholder="revendo" autocomplete="off" spellcheck="false" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="@formId-iva">IVA en los precios</label>
+                                <select id="@formId-iva" name="Stripe.PreciosIncluyenIva" class="form-select" disabled="@off">
+                                    <option value="true" selected="@c.PreciosIncluyenIva">Los precios ya incluyen IVA</option>
+                                    <option value="false" selected="@(!c.PreciosIncluyenIva)">Sin IVA (o Stripe lo desglosa)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="@formId-act">Sincronización</label>
+                                <select id="@formId-act" name="Stripe.Activa" class="form-select" disabled="@off">
+                                    <option value="true" selected="@c.Activa">Activa (cada hora)</option>
+                                    <option value="false" selected="@(!c.Activa)">Pausada</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                @if (!Model.EsNuevo)
+                                {
+                                    var e = Model.EstadoClave;
+                                    <div class="gas-badges mb-2">
+                                        <span class="gas-badge @(e.Configurada ? "gas-badge--success" : "gas-badge--danger")">@Iconos.Svg(e.Configurada ? "check" : "x") @(e.Configurada ? "API key configurada" : "Falta la API key")</span>
+                                        @if (e.Configurada) { <span class="gas-badge @(e.Restringida ? "gas-badge--success" : "gas-badge--warning")">@(e.Restringida ? "Clave restringida" : "Clave secreta completa: mejor usa una restringida")</span> }
+                                        @if (e.Prueba) { <span class="gas-badge gas-badge--info">Modo de prueba</span> }
+                                    </div>
+                                }
+                                <div class="small text-muted">
+                                    En Stripe crea una <strong>clave restringida</strong> con permiso de solo lectura para Customers, Subscriptions, Invoices, Charges y Balance.
+                                    @(Model.EsNuevo ? "Después de conectar la cuenta podrás capturarla aquí." : "")
+                                </div>
+                                @if (!Model.EsNuevo && User.IsInRole(RolesBase.Admin))
+                                {
+                                    <button type="button" class="btn btn-sm btn-gas-outline mt-2"
+                                            data-modal-url="@Url.Page("/Organizacion/Configuracion/Index", "Llaves", new { grupo = $"stripe:{clave}", volver = Url.Page("/Finanzas/Configuracion/Index", new { vista = "stripe" }) })">
+                                        @Iconos.Svg("key") @(Model.EstadoClave.Configurada ? "Reemplazar API key" : "Capturar API key")
+                                    </button>
+                                }
+                                else if (!Model.EsNuevo && !Model.EstadoClave.Configurada)
+                                {
+                                    <div class="small text-muted mt-1">Solo un Admin puede capturar la API key.</div>
+                                }
+                            </div>
+                        }
+                        else if (Model.Tipo == "categoria")
+                        {
+                            var c = Model.Categoria;
+                            <input type="hidden" name="Categoria.Tipo" value="@c.Tipo" />
+                            <div class="col-md-8">
+                                <label class="form-label" for="@formId-nombre">Nombre</label>
+                                <input id="@formId-nombre" name="Categoria.Nombre" value="@c.Nombre" class="form-control" maxlength="100" disabled="@off" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="@formId-act">Estado</label>
+                                <select id="@formId-act" name="Categoria.Activa" class="form-select" disabled="@off">
+                                    <option value="true" selected="@c.Activa">Activa</option>
+                                    <option value="false" selected="@(!c.Activa)">Inactiva</option>
+                                </select>
+                            </div>
+                        }
+                        else
+                        {
+                            var t = Model.TipoCambio;
+                            <div class="col-md-6">
+                                <label class="form-label" for="@formId-fecha">Fecha</label>
+                                <input id="@formId-fecha" name="TipoCambio.Fecha" value="@t.Fecha.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="@formId-valor">MXN por 1 USD</label>
+                                <input id="@formId-valor" name="TipoCambio.Valor" value="@(t.Valor > 0 ? t.Valor.ToString(inv) : "")" type="number" min="0" step="0.0001" class="form-control" disabled="@off" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="@formId-fuente">Fuente</label>
+                                <input id="@formId-fuente" name="TipoCambio.Fuente" value="@t.Fuente" class="form-control" maxlength="100" disabled="@off" />
+                            </div>
+                        }
+                    </div>
+                </div>
+            </section>
+            @if (Model.Usos > 0)
+            {
+                <p class="small text-muted mt-3 mb-0">@Iconos.Svg("note") Usada en @Model.Usos movimiento(s).</p>
+            }
+        </form>
+    </div>
+
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <form method="post" asp-page="/Finanzas/Configuracion/Index" asp-page-handler="@eliminar" asp-route-id="@Model.Id"
+                  data-confirm-title="¿Eliminar @titulo?" data-confirm="Esta acción no se puede deshacer."
+                  data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Eliminar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg(Model.EsNuevo ? "check" : "save") @(Model.EsNuevo ? "Crear" : "Guardar cambios")</button>
+            }
+        </div>
+    </div>
+</div>

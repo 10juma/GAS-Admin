@@ -1,0 +1,107 @@
+@model GAS.Admin.Pages.Productos.Cuentas.CuentaModalVm
+@using GAS.Admin.Services.Productos
+@{
+    var c = Model.Cuenta;
+    var formLiga = $"form-cuenta-liga-{c.Id}";
+    bool Aplica(string accion) => accion switch
+    {
+        "suspender" => c.Estado is "activa" or "prueba",
+        "reactivar" => c.Estado == "suspendida",
+        "extender-prueba" => c.Estado == "prueba",
+        "reenviar-acceso" => c.Estado != "cancelada",
+        _ => false
+    };
+}
+<div data-size="lg" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon gas-modal__icon--violet">@Iconos.Svg("users")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@c.Nombre</h2>
+            <div class="gas-badges mt-2">
+                <span class="gas-badge @ServicioConexiones.TonoEstado(c.Estado)">@ServicioConexiones.TextoEstado(c.Estado)</span>
+                <span class="gas-badge gas-badge--plain">@c.Conexion.Producto.Nombre · @(c.Plan ?? "sin plan")</span>
+                <span class="gas-badge gas-badge--plain"><code>@c.ExternoId</code></span>
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <section class="gas-card h-100">
+                    <div class="gas-card__header"><h2>@Iconos.Svg("note") Datos</h2></div>
+                    <div class="gas-card__body">
+                        <dl class="gas-totales__lista">
+                            <dt>Correo</dt><dd>@(c.Email ?? "—")</dd>
+                            <dt>Usuarios</dt><dd>@c.Usuarios</dd>
+                            <dt>Alta</dt><dd>@(c.CreadaUtc is null ? "—" : Fechas.ALocal(c.CreadaUtc.Value).ToString("dd/MM/yyyy"))</dd>
+                            <dt>Último uso</dt><dd>@(c.UltimoUsoUtc is null ? "Nunca" : Fechas.Formato(c.UltimoUsoUtc))</dd>
+                            @if (c.PruebaHastaUtc is not null) { <dt>Prueba hasta</dt><dd>@Fechas.ALocal(c.PruebaHastaUtc.Value).ToString("dd/MM/yyyy")</dd> }
+                            @if (Model.PuedeVerFinanzas && Model.Suscriptor is not null)
+                            {
+                                <dt>Stripe</dt><dd><a asp-page="/Finanzas/Suscripciones/Index" asp-route-seccion="suscriptores" asp-route-buscar="@(Model.Suscriptor.Email ?? Model.Suscriptor.StripeId)">@Etiquetas.Dinero(Model.MrrStripe, Model.MonedaStripe ?? "MXN") al mes</a></dd>
+                            }
+                            else if (c.StripeCustomerId is not null) { <dt>Stripe</dt><dd><code>@c.StripeCustomerId</code></dd> }
+                        </dl>
+                    </div>
+                </section>
+            </div>
+            <div class="col-md-6">
+                <section class="gas-card h-100">
+                    <div class="gas-card__header"><div><h2>@Iconos.Svg("building") Cliente de GAS</h2><p>Solo si hay relación comercial directa.</p></div></div>
+                    <div class="gas-card__body">
+                        <form id="@formLiga" method="post" asp-page="/Productos/Cuentas/Index" asp-page-handler="Vincular" asp-route-id="@c.Id">
+                            <input type="hidden" name="volver" value="@Model.Volver" />
+                            <select name="clienteId" class="form-select mb-2" disabled="@(!Model.PuedeGestionar)" aria-label="Cliente de GAS">
+                                <option value="">Sin cliente</option>
+                                @foreach (var (id, nombre) in Model.Clientes) { <option value="@id" selected="@(id == c.ClienteId)">@nombre</option> }
+                            </select>
+                            @if (Model.PuedeGestionar) { <button type="submit" class="btn btn-sm btn-gas-outline">@Iconos.Svg("save") Guardar cliente</button> }
+                        </form>
+                    </div>
+                </section>
+            </div>
+            @if (Model.PuedeGestionar)
+            {
+                <div class="col-12">
+                    <section class="gas-card">
+                        <div class="gas-card__header"><div><h2>@Iconos.Svg("shield") Acciones en @c.Conexion.Producto.Nombre</h2><p>Se ejecutan en el producto y quedan en la bitácora de ambos lados con el motivo.</p></div></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                @foreach (var a in ServicioConexiones.Acciones.Where(x => Aplica(x.Clave)))
+                                {
+                                    var fid = $"form-accion-{c.Id}-{a.Clave}";
+                                    <div class="col-md-6">
+                                        <form id="@fid" method="post" asp-page="/Productos/Cuentas/Index" asp-page-handler="Accion" asp-route-id="@c.Id" class="gas-option gas-option--static h-100"
+                                              data-confirm-title="¿@a.Texto de @c.Nombre?" data-confirm="Se aplicará directamente en @c.Conexion.Producto.Nombre." data-confirm-ok="@a.Texto" data-confirm-tone="@(a.Tono == "danger" ? "danger" : "")">
+                                            <input type="hidden" name="accion" value="@a.Clave" />
+                                            <input type="hidden" name="volver" value="@Model.Volver" />
+                                            <div class="w-100">
+                                                <div class="fw-semibold mb-2">@Iconos.Svg(a.Icono) @a.Texto</div>
+                                                @if (a.PideDias)
+                                                {
+                                                    <input name="dias" type="number" min="1" max="90" value="14" class="form-control form-control-sm mb-2" aria-label="Días a extender" />
+                                                }
+                                                <input name="motivo" class="form-control form-control-sm mb-2" maxlength="500" placeholder="Motivo (obligatorio)" aria-label="Motivo" required />
+                                                <button type="submit" class="btn btn-sm @(a.Tono == "danger" ? "btn-gas-danger" : "btn-gas")">@Iconos.Svg("check") Aplicar</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                }
+                                @if (!ServicioConexiones.Acciones.Any(x => Aplica(x.Clave)))
+                                {
+                                    <div class="col-12 text-muted small">No hay acciones disponibles para una cuenta cancelada.</div>
+                                }
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="modal-footer">
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") Cerrar</button>
+        </div>
+    </div>
+</div>

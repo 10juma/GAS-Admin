@@ -1,0 +1,176 @@
+@page "/"
+@model GAS.Admin.Pages.Dashboard.IndexModel
+@using GAS.Admin.Services.Auditoria
+@using System.Globalization
+@{
+    ViewData["Title"] = "Dashboard";
+    var ahora = Fechas.ALocal(DateTime.UtcNow);
+    var saludo = ahora.Hour < 12 ? "Buenos días" : ahora.Hour < 19 ? "Buenas tardes" : "Buenas noches";
+    var nombre = User.NombreVisible().Split(' ', '@')[0];
+    var fecha = ahora.ToString("dddd d 'de' MMMM", new CultureInfo("es-MX"));
+    fecha = char.ToUpper(fecha[0]) + fecha[1..];
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />@saludo, @nombre</h1>
+        <p>Centro de control de Global App Suite.</p>
+    </div>
+    <div class="gas-page-header__actions">
+        <span class="gas-badge gas-badge--plain">@Iconos.Svg("calendar") @fecha</span>
+        @if (Model.AlertasHoy > 0 && Model.PuedeVerAuditoria)
+        {
+            <a asp-page="/Administracion/Auditoria/Index" asp-route-cat="Alertas" class="gas-chip gas-chip--danger">
+                @Iconos.Svg("alert") Alertas de seguridad
+                <span class="gas-chip__count">@Model.AlertasHoy</span>
+            </a>
+        }
+    </div>
+</div>
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <a asp-page="/Productos/Index" class="gas-card gas-stat text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("box")</span>
+        <div>
+            <div class="gas-stat__label">Productos en operación</div>
+            <div class="gas-stat__value">@Model.ProductosOperacion</div>
+            <div class="gas-stat__hint">de @Model.ProductosTotal en el portafolio</div>
+        </div>
+    </a>
+    <a asp-page="/Clientes/Index" class="gas-card gas-stat gas-stat--info text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("building")</span>
+        <div>
+            <div class="gas-stat__label">Clientes activos</div>
+            <div class="gas-stat__value">@Model.ClientesActivos</div>
+            <div class="gas-stat__hint">de @Model.ClientesTotal registrados</div>
+        </div>
+    </a>
+    @if (Model.PuedeVerServicios)
+    {
+    <a asp-page="/ServiciosExternos/Index" class="gas-card gas-stat gas-stat--violet text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("dollar")</span>
+        <div class="min-w-0">
+            <div class="gas-stat__label">Costo mensual de servicios</div>
+            <div class="gas-stat__value" style="font-size: @(Model.CostoMensual.Count > 1 ? "18px" : "28px"); line-height: 1.2;">
+                @(Model.CostoMensual.Count == 0 ? "—" : string.Join(" + ", Model.CostoMensual.OrderBy(c => c.Key).Select(c => Etiquetas.Dinero(c.Value, c.Key))))
+            </div>
+            <div class="gas-stat__hint">servicios externos con costo fijo</div>
+        </div>
+    </a>
+    <a asp-page="/ServiciosExternos/Index" class="gas-card gas-stat @(Model.Renovaciones30 > 0 ? "gas-stat--warning" : "gas-stat--muted") text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("refresh")</span>
+        <div>
+            <div class="gas-stat__label">Renovaciones (30 días)</div>
+            <div class="gas-stat__value">@Model.Renovaciones30</div>
+            <div class="gas-stat__hint">dominios, planes y suscripciones</div>
+        </div>
+    </a>
+    }
+</div>
+
+@* Actividad a la izquierda (más ancha); renovaciones y equipo a la derecha.
+   Sin permiso de auditoría, las otras dos tarjetas quedan lado a lado. *@
+<div class="gas-dash @(Model.PuedeVerAuditoria ? "" : "gas-dash--sin-actividad")">
+    @if (Model.PuedeVerAuditoria)
+    {
+        <section class="gas-card">
+            <div class="gas-card__header">
+                <div>
+                    <h2>@Iconos.Svg("activity") Actividad reciente</h2>
+                    <p>Últimos movimientos en GAS-Admin</p>
+                </div>
+                <a asp-page="/Administracion/Auditoria/Index" class="btn btn-sm btn-gas-outline">Ver todo @Iconos.Svg("arrow-right")</a>
+            </div>
+            @if (Model.Actividad.Count == 0)
+            {
+                <div class="gas-empty">@Iconos.Svg("clock") Todavía no hay actividad registrada.</div>
+            }
+            else
+            {
+                <ul class="gas-timeline">
+                    @foreach (var evento in Model.Actividad)
+                    {
+                        var info = AccionesAuditoria.Info(evento.Accion);
+                        var punto = info.Tono switch
+                        {
+                            TonoAccion.Exito => "gas-timeline__dot--success",
+                            TonoAccion.Advertencia => "gas-timeline__dot--warning",
+                            TonoAccion.Peligro => "gas-timeline__dot--danger",
+                            _ => ""
+                        };
+                        <li>
+                            <span class="gas-timeline__dot @punto"></span>
+                            <div class="gas-timeline__body">
+                                <strong>@info.Nombre</strong>
+                                <span>@(evento.UsuarioEmail ?? "Sistema")@(string.IsNullOrEmpty(evento.Detalle) ? "" : " · " + DetalleAuditoria.Visible(evento.Detalle, User))</span>
+                            </div>
+                            <span class="gas-badge gas-badge--plain" title="@Fechas.Formato(evento.FechaUtc)">@Fechas.Relativo(evento.FechaUtc)</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    }
+
+    <div class="gas-dash__lateral">
+        @if (Model.PuedeVerServicios)
+        {
+            <section class="gas-card">
+                <div class="gas-card__header">
+                    <div>
+                        <h2>@Iconos.Svg("refresh") Próximas renovaciones</h2>
+                        <p>Servicios externos por renovar</p>
+                    </div>
+                    <a asp-page="/ServiciosExternos/Index" class="btn btn-sm btn-gas-outline">Ver todos @Iconos.Svg("arrow-right")</a>
+                </div>
+                @if (Model.ProximasRenovaciones.Count == 0)
+                {
+                    <div class="gas-empty">@Iconos.Svg("calendar") Sin fechas de renovación capturadas.</div>
+                }
+                else
+                {
+                    <ul class="gas-timeline">
+                        @foreach (var r in Model.ProximasRenovaciones)
+                        {
+                            var punto = r.Dias <= 7 ? "gas-timeline__dot--danger" : r.Dias <= 30 ? "gas-timeline__dot--warning" : "";
+                            <li>
+                                <span class="gas-timeline__dot @punto"></span>
+                                <div class="gas-timeline__body">
+                                    <strong>@r.Servicio</strong>
+                                    <span>@r.Fecha.ToString("dd/MM/yyyy")@(r.Costo is null ? "" : " · " + Etiquetas.Dinero(r.Costo, r.Moneda))</span>
+                                </div>
+                                <partial name="/Pages/ServiciosExternos/_Renovacion.cshtml" model="((DateOnly?)r.Fecha, (int?)r.Dias, false)" />
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+        }
+
+        @if (Model.PuedeVerUsuarios)
+        {
+            <section class="gas-card">
+                <div class="gas-card__header">
+                    <div>
+                        <h2>@Iconos.Svg("users") Equipo</h2>
+                        <p>Usuarios internos y su último acceso</p>
+                    </div>
+                    <a asp-page="/Administracion/Usuarios/Index" class="btn btn-sm btn-gas-outline">Ver todos @Iconos.Svg("arrow-right")</a>
+                </div>
+                <ul class="gas-timeline">
+                    @foreach (var u in Model.Equipo)
+                    {
+                        <li style="align-items: center;">
+                            <span class="gas-avatar gas-avatar--sm @Avatar.Clase(u.Email) @(u.Activo ? "" : "gas-avatar--muted")">@Avatar.Iniciales(u.Nombre)</span>
+                            <div class="gas-timeline__body">
+                                <button type="button" class="gas-link-btn" data-modal-url="@Url.Page("/Administracion/Usuarios/Index", "Editar", new { id = u.Id })"><strong>@u.Nombre</strong></button>
+                                <div class="mt-1"><partial name="_RolChips" model="u.Roles" /></div>
+                            </div>
+                            <span class="gas-badge gas-badge--plain" title="@Fechas.Formato(u.UltimoAccesoUtc)">@Fechas.Relativo(u.UltimoAccesoUtc)</span>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+    </div>
+</div>

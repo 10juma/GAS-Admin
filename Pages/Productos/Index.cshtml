@@ -1,0 +1,104 @@
+@page
+@model GAS.Admin.Pages.Productos.IndexModel
+@{
+    ViewData["Title"] = "Catálogo de productos";
+    ViewData["Seccion"] = "Productos";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var filtros = new List<(string?, string, int, string)> { (null, "Todos", Model.Total, "dark") };
+    filtros.AddRange(Etiquetas.Valores<EstadoProducto>().Select(e => ((string?)e.ToString(), Etiquetas.Texto(e), Model.PorEstado.GetValueOrDefault(e), Etiquetas.Tono(e))));
+    var chips = (Pagina: "/Productos/Index", Actual: Model.Estado, Opciones: (IEnumerable<(string?, string, int, string)>)filtros, Extra: (IDictionary<string, string>?)null);
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Catálogo de productos</h1>
+        <p>Portafolio de Global App Suite: estado, modalidad, plataformas y dependencias.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo", new { estado = Model.Estado })">
+            @Iconos.Svg("plus") Nuevo producto
+        </button>
+    }
+</div>
+
+<div class="mb-3">
+    <partial name="_ChipsEstado" model="chips" />
+</div>
+
+@if (Model.Productos.Count == 0)
+{
+    <div class="gas-card"><div class="gas-empty">@Iconos.Svg("box") No hay productos con este filtro.</div></div>
+}
+else
+{
+    <div class="gas-product-grid">
+        @foreach (var t in Model.Productos)
+        {
+            var p = t.Producto;
+            <article class="gas-card gas-product-card">
+                <span class="gas-product-card__strip @Avatar.Clase(p.Nombre)"></span>
+                <header class="gas-product-card__head">
+                    <span class="gas-avatar gas-avatar--lg @Avatar.Clase(p.Nombre)" style="border-radius: 12px;">@Avatar.Iniciales(p.Nombre)</span>
+                    <div class="min-w-0 flex-grow-1">
+                        <h2>@p.Nombre</h2>
+                        <span class="gas-badge @Etiquetas.Badge(p.Estado)">@Etiquetas.Texto(p.Estado)</span>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = p.Id, estado = Model.Estado })">
+                        @if (Model.PuedeGestionar)
+                        {
+                            @Iconos.Svg("pencil") <span>Editar</span>
+                        }
+                        else
+                        {
+                            @Iconos.Svg("eye") <span>Ver</span>
+                        }
+                    </button>
+                </header>
+
+                <p class="gas-product-card__desc">@(string.IsNullOrWhiteSpace(p.Descripcion) ? "Sin descripción." : p.Descripcion)</p>
+
+                <div class="gas-badges">
+                    <span class="gas-badge @Etiquetas.Badge(p.Modalidad)">@Etiquetas.Texto(p.Modalidad)</span>
+                    @if (p.TieneWeb) { <span class="gas-badge gas-badge--plain">@Iconos.Svg("globe") Web</span> }
+                    @if (p.TieneApp) { <span class="gas-badge gas-badge--plain">@Iconos.Svg("phone") App</span> }
+                    @if (p.UsaStripe) { <span class="gas-badge gas-badge--violet">@Iconos.Svg("card") Stripe</span> }
+                    <span class="gas-badge @Etiquetas.Badge(p.SuperAdmin)">@Etiquetas.Texto(p.SuperAdmin)</span>
+                </div>
+
+                <footer class="gas-product-card__foot">
+                    <span class="gas-chip gas-chip--info" title="Clientes activos / total" style="pointer-events: none;">
+                        @Iconos.Svg("building") Clientes <span class="gas-chip__count">@t.ClientesActivos/@t.ClientesTotal</span>
+                    </span>
+                    <span class="gas-chip gas-chip--violet" title="Servicios externos de los que depende" style="pointer-events: none;">
+                        @Iconos.Svg("plug") Servicios <span class="gas-chip__count">@t.Servicios</span>
+                    </span>
+                    @if (Model.Conexiones.TryGetValue(p.Id, out var con))
+                    {
+                        <a asp-page="/Productos/Cuentas/Index" asp-route-producto="@p.Id" class="gas-chip @(con.Conexion.UltimoError is not null || con.Conexion.EstadoOk == false ? "gas-chip--danger" : "gas-chip--success")"
+                           title="@(con.Conexion.UltimoError ?? (con.Conexion.Version is null ? "Conectado" : $"Conectado · v{con.Conexion.Version}"))">
+                            @Iconos.Svg("users") Cuentas <span class="gas-chip__count">@con.Cuentas</span>
+                        </a>
+                    }
+                    <span class="ms-auto gas-product-card__owner" title="Responsable técnico">
+                        @if (t.Responsable is not null)
+                        {
+                            <span class="gas-avatar gas-avatar--sm @Avatar.Clase(t.Responsable)">@Avatar.Iniciales(t.Responsable)</span>
+                        }
+                        else
+                        {
+                            <span class="gas-badge gas-badge--plain">Sin responsable</span>
+                        }
+                    </span>
+                </footer>
+            </article>
+        }
+    </div>
+}
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_ProductoModal" model="Model.Modal" />
+    }
+}

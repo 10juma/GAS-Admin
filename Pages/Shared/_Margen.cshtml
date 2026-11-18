@@ -1,0 +1,11 @@
+@* Chip de margen: verde ≥ 40 %, ámbar ≥ 20 %, rojo debajo. *@
+@model decimal?
+@if (Model is null)
+{
+    <span class="text-muted">—</span>
+}
+else
+{
+    var clase = Model >= 0.40m ? "gas-badge--success" : Model >= 0.20m ? "gas-badge--warning" : "gas-badge--danger";
+    <span class="gas-badge @clase" title="Margen estimado">@((Model.Value * 100).ToString("0.#"))%</span>
+}

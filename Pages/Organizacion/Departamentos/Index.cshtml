@@ -1,0 +1,104 @@
+@page
+@model GAS.Admin.Pages.Organizacion.Departamentos.IndexModel
+@{
+    ViewData["Title"] = "Departamentos y puestos";
+    ViewData["Seccion"] = "Organización";
+    if (Model.ModalDepartamento is not null || Model.ModalPuesto is not null) ViewData["AbrirModal"] = true;
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Departamentos y puestos</h1>
+        <p>Estructura de Global App Suite. Los departamentos organizan al equipo; los permisos se dan en Roles.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <div class="gas-page-header__actions">
+            <button type="button" class="btn btn-gas-outline" data-modal-url="@Url.Page("Index", "NuevoPuesto")">@Iconos.Svg("plus") Nuevo puesto</button>
+            <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Nuevo departamento</button>
+        </div>
+    }
+</div>
+
+<section class="gas-card">
+    @if (Model.Departamentos.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("building") Aún no hay departamentos.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr>
+                        <th>Departamento</th>
+                        <th>Responsable</th>
+                        <th>Equipo</th>
+                        <th>Puestos</th>
+                        <th class="text-end"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Model.Departamentos)
+                    {
+                        var d = f.Departamento;
+                        <tr>
+                            <td>
+                                <div class="gas-person">
+                                    <span class="gas-avatar gas-avatar--@d.Color" style="border-radius: 10px;">@Avatar.Iniciales(d.Nombre)</span>
+                                    <span class="gas-person__text">
+                                        <span class="gas-person__name">@d.Nombre</span>
+                                        <span class="gas-person__email">@(d.Descripcion ?? "")</span>
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                @if (f.Responsable is not null) { <span class="gas-badge gas-badge--success">@f.Responsable</span> }
+                                else { <span class="gas-badge gas-badge--warning">Sin responsable</span> }
+                            </td>
+                            <td>
+                                <div class="gas-badges">
+                                    <span class="gas-chip gas-chip--info" style="pointer-events: none; padding-top: 3px; padding-bottom: 3px;">@Iconos.Svg("users") <span class="gas-chip__count">@f.Personas</span></span>
+                                    <span class="gas-badge gas-badge--plain">@Iconos.Svg("clock") @f.Horas h/sem</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="gas-badges">
+                                    @foreach (var p in f.Puestos)
+                                    {
+                                        <button type="button" class="gas-badge gas-badge--violet gas-badge--plain gas-badge--btn" data-modal-url="@Url.Page("Index", "EditarPuesto", new { id = p.Id })"
+                                                title="@(p.Ocupantes == 1 ? "1 persona" : p.Ocupantes + " personas")">@p.Nombre@(p.Ocupantes > 0 ? $" · {p.Ocupantes}" : "")</button>
+                                    }
+                                    @if (Model.PuedeGestionar)
+                                    {
+                                        <button type="button" class="gas-badge gas-badge--plain gas-badge--btn" data-modal-url="@Url.Page("Index", "NuevoPuesto", new { departamentoId = d.Id })">@Iconos.Svg("plus") Puesto</button>
+                                    }
+                                    else if (f.Puestos.Count == 0)
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </div>
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = d.Id })">
+                                    @if (Model.PuedeGestionar) { @Iconos.Svg("pencil") <span>Editar</span> } else { @Iconos.Svg("eye") <span>Ver</span> }
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@section Modal {
+    @if (Model.ModalDepartamento is not null)
+    {
+        <partial name="_DepartamentoModal" model="Model.ModalDepartamento" />
+    }
+    else if (Model.ModalPuesto is not null)
+    {
+        <partial name="_PuestoModal" model="Model.ModalPuesto" />
+    }
+}

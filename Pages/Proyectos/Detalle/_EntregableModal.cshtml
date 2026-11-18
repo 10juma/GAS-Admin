@@ -1,0 +1,79 @@
+@model GAS.Admin.Pages.Proyectos.Detalle.EntregableModalVm
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-entregable-nuevo" : $"form-entregable-{Model.Id}";
+    var i = Model.Input;
+    var archivos = (Model.Archivos, (int?)Model.TrabajoId, Model.Id, (int?)null, (string?)Model.Volver, Model.PuedeGestionar);
+}
+<div data-size="lg" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg("check")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@(Model.EsNuevo ? "Nuevo entregable" : i.Nombre)</h2>
+            @if (!Model.EsNuevo)
+            {
+                <div class="gas-badges mt-2"><span class="gas-badge @Etiquetas.Badge(i.Estado)">@Etiquetas.Texto(i.Estado)</span></div>
+            }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Proyectos/Detalle/Index"
+              asp-page-handler="@(Model.EsNuevo ? "CrearEntregable" : "GuardarEntregable")"
+              asp-route-id="@Model.Id" asp-route-trabajoId="@Model.TrabajoId">
+            <section class="gas-card">
+                <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Entregable</h2></div>
+                <div class="gas-card__body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label" for="@formId-nombre">Nombre</label>
+                            <input id="@formId-nombre" name="Input.Nombre" value="@i.Nombre" class="form-control" maxlength="200" disabled="@off" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="@formId-desc">Descripción</label>
+                            <textarea id="@formId-desc" name="Input.Descripcion" class="form-control" rows="2" maxlength="1000" disabled="@off">@i.Descripcion</textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="@formId-comp">Fecha comprometida</label>
+                            <input id="@formId-comp" name="Input.FechaCompromiso" value="@i.FechaCompromiso?.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="@formId-estado">Estado</label>
+                            <select id="@formId-estado" name="Input.Estado" class="form-select" disabled="@off">
+                                @foreach (var e in Etiquetas.Valores<EstadoEntregable>()) { <option value="@e" selected="@(e == i.Estado)">@Etiquetas.Texto(e)</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="@formId-ent">Fecha de entrega</label>
+                            <input id="@formId-ent" name="Input.FechaEntrega" value="@i.FechaEntrega?.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </form>
+        @if (!Model.EsNuevo)
+        {
+            <section class="gas-card">
+                <div class="gas-card__header"><div><h2>@Iconos.Svg("note") Evidencias</h2><p>Documentos o capturas que respaldan la entrega.</p></div></div>
+                <partial name="/Pages/Proyectos/_Archivos.cshtml" model="archivos" />
+            </section>
+        }
+    </div>
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <form method="post" asp-page="/Proyectos/Detalle/Index" asp-page-handler="EliminarEntregable" asp-route-id="@Model.Id"
+                  data-confirm-title="¿Eliminar este entregable?" data-confirm="Sus tareas y evidencias se conservan, pero dejarán de estar ligadas a él."
+                  data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Eliminar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg("save") @(Model.EsNuevo ? "Agregar" : "Guardar")</button>
+            }
+        </div>
+    </div>
+</div>

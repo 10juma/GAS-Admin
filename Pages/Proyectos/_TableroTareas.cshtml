@@ -1,0 +1,25 @@
+@* Kanban de tareas (general o de un trabajo). *@
+@model (Dictionary<GAS.Admin.Models.Entities.EstadoTarea, List<GAS.Admin.Pages.Proyectos.Tareas.IndexModel.Tarjeta>> Columnas, bool Editable, string Volver, int? TrabajoId)
+<div class="gas-kanban" data-kanban data-mover-url="@Url.Page("/Proyectos/Tareas/Index", "Mover")" data-editable="@(Model.Editable ? "1" : null)">
+    @foreach (var (estado, tarjetas) in Model.Columnas)
+    {
+        <section class="gas-kanban__col" data-etapa="@estado">
+            <header class="gas-kanban__head">
+                <span class="gas-badge @Etiquetas.Badge(estado)">@Etiquetas.Texto(estado)</span>
+                <span class="gas-chip__count" style="border: 1px solid var(--gas-border);" data-conteo>@tarjetas.Count</span>
+                @if (Model.Editable)
+                {
+                    <button type="button" class="gas-icon-btn ms-auto" style="width: 28px; height: 28px;" title="Nueva tarea en @Etiquetas.Texto(estado)"
+                            data-modal-url="@Url.Page("/Proyectos/Tareas/Index", "Nuevo", new { trabajoId = Model.TrabajoId, estado, volver = Model.Volver })">@Iconos.Svg("plus")</button>
+                }
+            </header>
+            <div class="gas-kanban__list" data-lista>
+                @foreach (var t in tarjetas)
+                {
+                    <partial name="/Pages/Proyectos/_TarjetaTarea.cshtml" model="(t.Tarea, t.Folio, t.Responsable, t.Color, t.Horas, t.Comentarios, Model.Editable, Model.Volver)" />
+                }
+                <div class="gas-kanban__empty">Suelta aquí</div>
+            </div>
+        </section>
+    }
+</div>

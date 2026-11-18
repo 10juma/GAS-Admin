@@ -1,0 +1,18 @@
+@* Chip de próxima renovación con color según cercanía. *@
+@model (DateOnly? Fecha, int? Dias, bool Cancelado)
+@if (Model.Fecha is null || Model.Cancelado)
+{
+    <span class="text-muted">—</span>
+}
+else
+{
+    var (clase, texto) = Model.Dias switch
+    {
+        < 0 => ("gas-badge--danger", $"Vencida hace {-Model.Dias} d"),
+        0 => ("gas-badge--danger", "Hoy"),
+        <= 7 => ("gas-badge--danger", $"En {Model.Dias} d"),
+        <= 30 => ("gas-badge--warning", $"En {Model.Dias} d"),
+        _ => ("gas-badge--plain", Model.Fecha.Value.ToString("dd/MM/yyyy"))
+    };
+    <span class="gas-badge @clase" title="@Model.Fecha.Value.ToString("dd/MM/yyyy")">@Iconos.Svg("refresh") @texto</span>
+}

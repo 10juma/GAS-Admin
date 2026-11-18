@@ -1,0 +1,288 @@
+@page
+@model GAS.Admin.Pages.Finanzas.IndexModel
+@using GAS.Admin.Services.Finanzas
+@{
+    ViewData["Title"] = "Resumen financiero";
+    ViewData["Seccion"] = "Finanzas";
+    var r = Model.R;
+    var periodo = Model.Periodo is "anterior" or "trimestre" or "anio" ? Model.Periodo : "mes";
+    var maxFlujo = r.Flujo.Select(f => Math.Max(f.TotalEntradas, f.TotalSalidas)).DefaultIfEmpty(0).Max();
+    string Pct(decimal v) => maxFlujo <= 0 ? "0" : Math.Round(v / maxFlujo * 100, 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    string D(decimal v) => Etiquetas.Dinero(v);
+    var productos = r.Productos.Where(p => !p.Vacio).OrderByDescending(p => p.Ingresos).ThenByDescending(p => p.Costos).ToList();
+    var periodos = new (string Clave, string Texto)[] { ("mes", "Este mes"), ("anterior", "Mes anterior"), ("trimestre", "Últimos 3 meses"), ("anio", "Año") };
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Resumen financiero</h1>
+        <p>Finanzas de gestión en pesos: lo cobrado, lo pagado, lo pendiente y la rentabilidad. Resultados sin IVA; flujo y saldos pendientes con IVA.</p>
+    </div>
+    <div class="gas-page-header__actions">
+        <a asp-page="/Finanzas/Movimientos/Index" class="btn btn-gas-outline">@Iconos.Svg("dollar") Movimientos</a>
+        @if (Model.PuedeGestionar)
+        {
+            <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("/Finanzas/Movimientos/Index", "Nuevo", new { tipo = TipoMovimiento.Ingreso, volver = "/Finanzas" })">@Iconos.Svg("plus") Registrar movimiento</button>
+        }
+    </div>
+</div>
+
+@if (r.FaltaTipoCambio)
+{
+    <div class="gas-callout">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div class="gas-callout__text"><strong>No hay tipo de cambio del dólar</strong>Los montos en USD (servicios, horas o recurrentes) no se están sumando. Registra el tipo de cambio del día.</div>
+        <a asp-page="/Finanzas/Configuracion/Index" asp-route-vista="tipos" class="btn btn-sm btn-gas">@Iconos.Svg("swap") Tipos de cambio</a>
+    </div>
+}
+@if (Model.RenovacionesSinCargo > 0 && Model.PuedeGestionar)
+{
+    <div class="gas-callout">
+        <span class="gas-stat__icon">@Iconos.Svg("refresh")</span>
+        <div class="gas-callout__text"><strong>@Model.RenovacionesSinCargo renovación(es) en los próximos 30 días sin cargo esperado</strong>Regístralas para que aparezcan en Por pagar.</div>
+        <form method="post" asp-page="/Finanzas/Movimientos/Index" asp-page-handler="Renovaciones">
+            <input type="hidden" name="volver" value="/Finanzas" />
+            <button type="submit" class="btn btn-sm btn-gas">@Iconos.Svg("plus") Registrar cargos</button>
+        </form>
+    </div>
+}
+
+<div class="gas-toolbar px-0 pt-0">
+    <nav class="gas-chips" aria-label="Periodo">
+        @foreach (var (clave, texto) in periodos)
+        {
+            <a asp-page="Index" asp-route-periodo="@(clave == "mes" ? null : clave)" class="gas-chip gas-chip--dark @(periodo == clave ? "is-active" : "")">@Iconos.Svg("calendar") @texto</a>
+        }
+    </nav>
+    <span class="small text-muted">@Model.NombrePeriodo · del @r.Desde.ToString("dd/MM/yyyy") al @r.Hasta.ToString("dd/MM/yyyy")</span>
+</div>
+
+<div class="gas-grid gas-grid--4 mb-3">
+    <div class="gas-card gas-stat gas-stat--success">
+        <span class="gas-stat__icon">@Iconos.Svg("arrow-up")</span>
+        <div><div class="gas-stat__label">Ingresos cobrados</div><div class="gas-stat__value gas-stat__value--money">@D(r.Ingresos)</div><div class="gas-stat__hint">sin IVA</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--danger">
+        <span class="gas-stat__icon">@Iconos.Svg("arrow-down")</span>
+        <div><div class="gas-stat__label">Gastos pagados</div><div class="gas-stat__value gas-stat__value--money">@D(r.Egresos)</div><div class="gas-stat__hint">sin IVA · sin horas</div></div>
+    </div>
+    <div class="gas-card gas-stat @(r.Utilidad >= 0 ? "gas-stat--info" : "gas-stat--danger")">
+        <span class="gas-stat__icon">@Iconos.Svg("trend")</span>
+        <div>
+            <div class="gas-stat__label">Utilidad</div>
+            <div class="gas-stat__value gas-stat__value--money">@D(r.Utilidad)</div>
+            <div class="gas-stat__hint">@(r.Margen is null ? "sin ingresos en el periodo" : $"margen {r.Margen.Value * 100:0.#}% · incluye horas")</div>
+        </div>
+    </div>
+    <a asp-page="/Finanzas/Suscripciones/Index" class="gas-card gas-stat gas-stat--violet text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("refresh")</span>
+        <div>
+            <div class="gas-stat__label">MRR</div>
+            <div class="gas-stat__value gas-stat__value--money">@D(r.Mrr)</div>
+            <div class="gas-stat__hint">ARR @D(r.Mrr * 12) · servicios @D(r.MrrServicios) · @(r.HayStripe ? $"Stripe {D(r.MrrStripe)}" : "Stripe sin conectar")</div>
+        </div>
+    </a>
+</div>
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <a asp-page="/Finanzas/Movimientos/Index" asp-route-vista="porcobrar" class="gas-card gas-stat gas-stat--success text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("wallet")</span>
+        <div><div class="gas-stat__label">Por cobrar</div><div class="gas-stat__value gas-stat__value--money">@D(r.PorCobrar)</div><div class="gas-stat__hint @(r.PorCobrarVencido > 0 ? "text-danger" : "")">@(r.PorCobrarVencido > 0 ? $"{D(r.PorCobrarVencido)} vencido" : "nada vencido")</div></div>
+    </a>
+    <a asp-page="/Finanzas/Movimientos/Index" asp-route-vista="porpagar" class="gas-card gas-stat gas-stat--warning text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("card")</span>
+        <div><div class="gas-stat__label">Por pagar</div><div class="gas-stat__value gas-stat__value--money">@D(r.PorPagar)</div><div class="gas-stat__hint @(r.PorPagarVencido > 0 ? "text-danger" : "")">@(r.PorPagarVencido > 0 ? $"{D(r.PorPagarVencido)} vencido" : "nada vencido")</div></div>
+    </a>
+    <a asp-page="/ServiciosExternos/Index" class="gas-card gas-stat gas-stat--muted text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("server")</span>
+        <div><div class="gas-stat__label">Servicios y dominios al mes</div><div class="gas-stat__value gas-stat__value--money">@D(r.CostoFijoMensual)</div><div class="gas-stat__hint">costo fijo equivalente mensual</div></div>
+    </a>
+    <a asp-page="/Proyectos/Horas/Index" class="gas-card gas-stat gas-stat--info text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("clock")</span>
+        <div><div class="gas-stat__label">Horas del periodo</div><div class="gas-stat__value">@r.Horas.ToString("0.#") h</div><div class="gas-stat__hint">costo @D(r.CostoHoras)</div></div>
+    </a>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-6">
+        <section class="gas-card h-100">
+            <div class="gas-card__header">
+                <div><h2>@Iconos.Svg("activity") Flujo proyectado a 90 días</h2><p>Pendientes registrados más mensualidades y renovaciones aún no registradas. Con IVA.</p></div>
+            </div>
+            <div class="gas-card__body">
+                <div class="gas-flujo">
+                    @foreach (var f in r.Flujo)
+                    {
+                        <div class="gas-flujo__mes">
+                            <span class="gas-flujo__nombre">@ReportesFinanzas.NombreMes(f.Mes)</span>
+                            <div class="gas-flujo__barra gas-flujo__barra--in" title="Entradas">
+                                <span class="is-proy" style="width: @Pct(f.TotalEntradas)%"></span>
+                                <span style="width: @Pct(f.Entradas)%"></span>
+                            </div>
+                            <span class="gas-flujo__monto">+@D(f.TotalEntradas)</span>
+                            <div class="gas-flujo__barra gas-flujo__barra--out" title="Salidas">
+                                <span class="is-proy" style="width: @Pct(f.TotalSalidas)%"></span>
+                                <span style="width: @Pct(f.Salidas)%"></span>
+                            </div>
+                            <span class="gas-flujo__monto">−@D(f.TotalSalidas)</span>
+                            <span class="gas-flujo__neto">Neto <strong class="@(f.Neto >= 0 ? "text-success" : "text-danger")">@D(f.Neto)</strong>@if (f.EntradasProyectadas + f.SalidasProyectadas > 0) { <span> · incluye proyectado (+@D(f.EntradasProyectadas) / −@D(f.SalidasProyectadas))</span> }</span>
+                        </div>
+                    }
+                    <div class="gas-flujo__leyenda">
+                        <span><i style="background: var(--gas-green);"></i>Entradas registradas</span>
+                        <span><i style="background: #e0796b;"></i>Salidas registradas</span>
+                        <span><i style="background: var(--gas-green); opacity: .4;"></i>Proyectado</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-xl-6">
+        <section class="gas-card h-100">
+            <div class="gas-card__header"><div><h2>@Iconos.Svg("dollar") Resultado del periodo</h2><p>@Model.NombrePeriodo · sin IVA.</p></div></div>
+            <div class="gas-card__body">
+                <dl class="gas-totales__lista">
+                    <dt>Ingresos cobrados</dt><dd>@D(r.Ingresos)</dd>
+                    <dt>Gastos pagados</dt><dd>−@D(r.Egresos)</dd>
+                    <dt>Utilidad operativa</dt><dd>@D(r.UtilidadOperativa)</dd>
+                    <dt>Costo de horas (@r.Horas.ToString("0.#") h)</dt><dd>−@D(r.CostoHoras)</dd>
+                    <dt class="gas-totales__total">Utilidad</dt><dd class="gas-totales__total">@D(r.Utilidad)</dd>
+                </dl>
+                <div class="gas-table-wrap mt-3">
+                    <table class="gas-table">
+                        <thead><tr><th>Línea de negocio</th><th class="text-end">Ingresos</th><th class="text-end">Gastos</th><th class="text-end">Resultado</th></tr></thead>
+                        <tbody>
+                            @foreach (var l in r.Lineas)
+                            {
+                                <tr>
+                                    <td><span class="gas-badge @Etiquetas.Badge(l.Linea)">@Etiquetas.Texto(l.Linea)</span></td>
+                                    <td class="text-end gas-num">@D(l.Ingresos)</td>
+                                    <td class="text-end gas-num">@D(l.Egresos)</td>
+                                    <td class="text-end gas-num fw-semibold @(l.Utilidad < 0 ? "text-danger" : "")">@D(l.Utilidad)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<section class="gas-card mb-4">
+    <div class="gas-card__header">
+        <div><h2>@Iconos.Svg("box") Rentabilidad por producto</h2><p>@Model.NombrePeriodo · sin IVA. Los servicios externos compartidos se reparten en partes iguales; las horas cuentan por el producto del trabajo.</p></div>
+    </div>
+    @if (productos.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("box") Sin ingresos ni costos en el periodo.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th class="text-end">Ingresos</th>
+                        <th class="text-end">Gastos directos</th>
+                        <th class="text-end">Costos compartidos</th>
+                        <th class="text-end">Horas</th>
+                        <th class="text-end">Utilidad</th>
+                        <th>Margen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in productos)
+                    {
+                        <tr>
+                            <td><strong>@p.Nombre</strong></td>
+                            <td class="text-end gas-num">@D(p.Ingresos)</td>
+                            <td class="text-end gas-num">@D(p.GastosDirectos)</td>
+                            <td class="text-end gas-num">@D(p.CostosCompartidos)</td>
+                            <td class="text-end gas-num">@D(p.CostoHoras)<div class="small text-muted">@p.Horas.ToString("0.#") h</div></td>
+                            <td class="text-end gas-num fw-semibold @(p.Utilidad < 0 ? "text-danger" : "")">@D(p.Utilidad)</td>
+                            <td><partial name="_Margen" model="p.Margen" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<div class="row g-4">
+    <div class="col-xl-8">
+        <section class="gas-card h-100">
+            <div class="gas-card__header"><div><h2>@Iconos.Svg("layers") Margen por trabajo</h2><p>Trabajos activos con presupuesto, en su moneda. Primero los de menor margen.</p></div></div>
+            @if (r.Trabajos.Count == 0)
+            {
+                <div class="gas-empty">@Iconos.Svg("layers") No hay trabajos activos con presupuesto.</div>
+            }
+            else
+            {
+                <div class="gas-table-wrap">
+                    <table class="gas-table">
+                        <thead><tr><th>Trabajo</th><th class="text-end">Ingreso</th><th class="text-end">Costo</th><th>Margen real</th><th>Estimado</th><th class="text-end">Cobrado</th></tr></thead>
+                        <tbody>
+                            @foreach (var m in r.Trabajos)
+                            {
+                                var t = m.Trabajo;
+                                var x = m.Rentabilidad;
+                                <tr>
+                                    <td style="min-width: 240px;">
+                                        <a asp-page="/Proyectos/Detalle/Index" asp-route-id="@t.Id" class="text-decoration-none"><strong>@t.Folio</strong> · @t.Nombre</a>
+                                        <div class="small text-muted">@(m.Cliente ?? "—")@if (m.BajoEstimado) { <span class="gas-badge gas-badge--danger ms-1">bajo lo estimado</span> }</div>
+                                    </td>
+                                    <td class="text-end gas-num">@Etiquetas.Dinero(x.Ingreso, x.Moneda)</td>
+                                    <td class="text-end gas-num">@Etiquetas.Dinero(x.CostoTotal, x.Moneda)</td>
+                                    <td><partial name="_Margen" model="x.Margen" /></td>
+                                    <td><partial name="_Margen" model="x.MargenEstimado" /></td>
+                                    <td class="text-end gas-num">@Etiquetas.Dinero(x.Cobrado, x.Moneda)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+
+    <div class="col-xl-4">
+        <section class="gas-card h-100">
+            <div class="gas-card__header"><div><h2>@Iconos.Svg("refresh") Renovaciones a 30 días</h2><p>Servicios externos y dominios que se cobran pronto.</p></div></div>
+            @if (r.Renovaciones.Count == 0 && r.DominiosPorVencer.Count == 0)
+            {
+                <div class="gas-empty">@Iconos.Svg("check") Sin renovaciones en los próximos 30 días.</div>
+            }
+            else
+            {
+                <ul class="gas-timeline">
+                    @foreach (var s in r.Renovaciones)
+                    {
+                        var dias = s.ProximaRenovacion!.Value.DayNumber - ServicioFinanzas.Hoy.DayNumber;
+                        <li>
+                            <span class="gas-timeline__dot @(dias < 0 ? "gas-timeline__dot--danger" : dias <= 7 ? "gas-timeline__dot--warning" : "")"></span>
+                            <div class="gas-timeline__body">
+                                <strong>@s.Nombre</strong>
+                                <span>@s.ProximaRenovacion.Value.ToString("dd/MM/yyyy") · @(dias < 0 ? $"vencida hace {-dias} días" : dias == 0 ? "hoy" : $"en {dias} días") · @Etiquetas.Dinero(s.Costo, s.Moneda) @Etiquetas.Texto(s.Periodicidad).ToLowerInvariant()@(s.Productos.Count > 0 ? " · " + string.Join(", ", s.Productos.Select(p => p.Producto?.Nombre)) : "")</span>
+                            </div>
+                        </li>
+                    }
+                    @foreach (var d in r.DominiosPorVencer)
+                    {
+                        var dias = d.FechaVencimiento!.Value.DayNumber - ServicioFinanzas.Hoy.DayNumber;
+                        <li>
+                            <span class="gas-timeline__dot @(dias < 0 ? "gas-timeline__dot--danger" : dias <= 7 ? "gas-timeline__dot--warning" : "")"></span>
+                            <div class="gas-timeline__body">
+                                <strong>@Iconos.Svg("globe") @d.Nombre</strong>
+                                <span>@d.FechaVencimiento.Value.ToString("dd/MM/yyyy") · @(dias < 0 ? $"vencido hace {-dias} días" : dias == 0 ? "hoy" : $"en {dias} días") · @Etiquetas.Dinero(d.Costo, d.Moneda)@(d.RenovacionAutomatica ? " · renovación automática" : "")</span>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    </div>
+</div>

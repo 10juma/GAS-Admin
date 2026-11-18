@@ -1,0 +1,101 @@
+@model GAS.Admin.Pages.Soporte.TicketModalVm
+@using GAS.Admin.Services.Soporte
+@{
+    var i = Model.Input;
+    var formId = "form-ticket-nuevo";
+    var asignado = ("Input.AsignadoId", $"{formId}-asig", i.AsignadoId, Model.Usuarios, false);
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg("phone")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">Nuevo ticket</h2>
+            <div class="gas-modal__subtitle">Para solicitudes que llegan por llamada, WhatsApp o reunión. Los de correo y de los productos se crean solos.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Soporte/Index" asp-page-handler="Crear">
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Solicitud</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-asunto">Asunto</label>
+                                    <input id="@formId-asunto" name="Input.Asunto" value="@i.Asunto" class="form-control" maxlength="200" placeholder="Ej. No puede iniciar sesión en la app" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-desc">Descripción</label>
+                                    <textarea id="@formId-desc" name="Input.Descripcion" class="form-control" rows="6" maxlength="8000" placeholder="Qué pasa, desde cuándo, pasos, capturas o datos que dio el cliente…">@i.Descripcion</textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-cat">Categoría</label>
+                                    <select id="@formId-cat" name="Input.Categoria" class="form-select">
+                                        @foreach (var c in Etiquetas.Valores<CategoriaTicket>()) { <option value="@c" selected="@(c == i.Categoria)">@ServicioSoporte.TextoCategoria(c)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-prio">Prioridad</label>
+                                    <select id="@formId-prio" name="Input.Prioridad" class="form-select">
+                                        @foreach (var p in Etiquetas.Valores<Prioridad>().Reverse()) { <option value="@p" selected="@(p == i.Prioridad)">@Etiquetas.Texto(p)</option> }
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><div><h2>@Iconos.Svg("users") ¿De quién es?</h2><p>Liga el ticket a un cliente o a una cuenta de producto.</p></div></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-prod">Producto</label>
+                                    <select id="@formId-prod" name="Input.ProductoId" class="form-select" data-filtra="ticket-cuenta">
+                                        <option value="">Ninguno / servicio</option>
+                                        @foreach (var p in Model.Productos) { <option value="@p.Id" selected="@(p.Id == i.ProductoId)">@p.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-cuenta">Cuenta del producto</label>
+                                    <select id="@formId-cuenta" name="Input.CuentaProductoId" class="form-select" data-filtrado="ticket-cuenta">
+                                        <option value="">Ninguna</option>
+                                        @foreach (var c in Model.Cuentas) { <option value="@c.Id" data-padre="@c.Extra" selected="@(c.Id == i.CuentaProductoId)">@c.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-cli">Cliente de GAS</label>
+                                    <select id="@formId-cli" name="Input.ClienteId" class="form-select">
+                                        <option value="">Ninguno</option>
+                                        @foreach (var c in Model.Clientes) { <option value="@c.Id" selected="@(c.Id == i.ClienteId)">@c.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-cnom">Contacto</label>
+                                    <input id="@formId-cnom" name="Input.ContactoNombre" value="@i.ContactoNombre" class="form-control" maxlength="200" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-cmail">Correo</label>
+                                    <input id="@formId-cmail" name="Input.ContactoEmail" value="@i.ContactoEmail" type="email" class="form-control" maxlength="256" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-asig">Asignado a</label>
+                                    <partial name="_SelectResponsable" model="asignado" />
+                                </div>
+                            </div>
+                            <div class="form-text mt-2">Si eliges cuenta o cliente y dejas vacío el contacto, se toma el suyo. Sin correo no se pueden enviar respuestas.</div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="modal-footer">
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") Cancelar</button>
+            <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg("check") Crear ticket</button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,126 @@
+@page
+@model GAS.Admin.Pages.Administracion.Auditoria.IndexModel
+@using GAS.Admin.Services.Auditoria
+@{
+    ViewData["Title"] = "Auditoría";
+    ViewData["Seccion"] = "Administración";
+    string ClaseCategoria(CategoriaAccion c) => c switch
+    {
+        CategoriaAccion.Accesos => "gas-chip--success",
+        CategoriaAccion.Alertas => "gas-chip--danger",
+        CategoriaAccion.Usuarios => "gas-chip--info",
+        CategoriaAccion.Roles => "gas-chip--violet",
+        CategoriaAccion.Datos => "gas-chip--warning",
+        _ => ""
+    };
+    var desde = Model.Desde?.ToString("yyyy-MM-dd");
+    var hasta = Model.Hasta?.ToString("yyyy-MM-dd");
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Auditoría</h1>
+        <p>Bitácora de accesos y cambios en GAS-Admin. Horario del centro de México.</p>
+    </div>
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Filtrar por categoría">
+            <a asp-page="Index" asp-route-q="@Model.Q" asp-route-desde="@desde" asp-route-hasta="@hasta"
+               class="gas-chip gas-chip--dark @(string.IsNullOrEmpty(Model.Cat) ? "is-active" : "")">
+                Todo <span class="gas-chip__count">@Model.TotalSinCategoria</span>
+            </a>
+            @foreach (var (categoria, nombre) in AccionesAuditoria.Categorias)
+            {
+                <a asp-page="Index" asp-route-cat="@categoria" asp-route-q="@Model.Q" asp-route-desde="@desde" asp-route-hasta="@hasta"
+                   class="gas-chip @ClaseCategoria(categoria) @(Model.Cat == categoria.ToString() ? "is-active" : "")">
+                    @nombre <span class="gas-chip__count">@Model.PorCategoria.GetValueOrDefault(categoria)</span>
+                </a>
+            }
+        </nav>
+    </div>
+    <div class="gas-card__header">
+        <form method="get" class="gas-filters w-100">
+            @if (!string.IsNullOrEmpty(Model.Cat))
+            {
+                <input type="hidden" name="cat" value="@Model.Cat" />
+            }
+            <div class="flex-grow-1">
+                <label class="form-label" for="q">Buscar</label>
+                <div class="gas-input-icon">
+                    @Iconos.Svg("search")
+                    <input id="q" name="q" value="@Model.Q" class="form-control" placeholder="Correo o detalle" />
+                </div>
+            </div>
+            <div>
+                <label class="form-label" for="accion">Acción</label>
+                <select id="accion" name="accion" class="form-select">
+                    <option value="">Todas</option>
+                    @foreach (var a in AccionesAuditoria.Catalogo.OrderBy(a => a.Nombre))
+                    {
+                        <option value="@a.Clave" selected="@(Model.Accion == a.Clave)">@a.Nombre</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="form-label" for="desde">Desde</label>
+                <input id="desde" name="desde" type="date" value="@Model.Desde?.ToString("yyyy-MM-dd")" class="form-control" />
+            </div>
+            <div>
+                <label class="form-label" for="hasta">Hasta</label>
+                <input id="hasta" name="hasta" type="date" value="@Model.Hasta?.ToString("yyyy-MM-dd")" class="form-control" />
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-gas">@Iconos.Svg("filter") Filtrar</button>
+                <a asp-page="Index" class="btn btn-gas-outline">@Iconos.Svg("x") Limpiar</a>
+            </div>
+        </form>
+    </div>
+
+    @if (Model.Registros.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("search") No hay registros con estos filtros.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Acción</th>
+                        <th>Usuario</th>
+                        <th>Detalle</th>
+                        <th>IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.Registros)
+                    {
+                        <tr>
+                            <td style="white-space: nowrap;">@Fechas.Formato(r.FechaUtc)</td>
+                            <td><partial name="_AccionBadge" model="r.Accion" /></td>
+                            <td class="gas-col-usuario">@(r.UsuarioEmail ?? "—")</td>
+                            <td class="gas-col-detalle">@DetalleAuditoria.Visible(r.Detalle, User)</td>
+                            <td class="text-muted" style="white-space: nowrap;">@(r.Ip ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="gas-pager">
+            <span>@Model.Total registros · Página @Model.Pagina de @Model.TotalPaginas</span>
+            <div class="d-flex gap-2">
+                @if (Model.Pagina > 1)
+                {
+                    <a asp-page="Index" asp-all-route-data="Model.RutaPagina(Model.Pagina - 1)" class="btn btn-sm btn-gas-outline">@Iconos.Svg("arrow-left") Anterior</a>
+                }
+                @if (Model.Pagina < Model.TotalPaginas)
+                {
+                    <a asp-page="Index" asp-all-route-data="Model.RutaPagina(Model.Pagina + 1)" class="btn btn-sm btn-gas-outline">Siguiente @Iconos.Svg("arrow-right")</a>
+                }
+            </div>
+        </div>
+    }
+</div>

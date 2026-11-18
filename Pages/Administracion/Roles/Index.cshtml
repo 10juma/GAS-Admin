@@ -1,0 +1,96 @@
+@page
+@model GAS.Admin.Pages.Administracion.Roles.IndexModel
+@{
+    ViewData["Title"] = "Roles y permisos";
+    ViewData["Seccion"] = "Administración";
+    if (Model.ModalNuevo is not null)
+    {
+        ViewData["AbrirModal"] = true;
+    }
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Roles y permisos</h1>
+        <p>Cada rol define a qué módulos tienen acceso sus usuarios.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo")">
+            @Iconos.Svg("plus") Nuevo rol
+        </button>
+    }
+</div>
+
+<section class="gas-card">
+    <div class="gas-table-wrap">
+        <table class="gas-table">
+            <thead>
+                <tr>
+                    <th>Rol</th>
+                    <th>Usuarios</th>
+                    <th>Permisos</th>
+                    <th class="text-end"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var rol in Model.Roles)
+                {
+                    <tr>
+                        <td>
+                            <div class="gas-person">
+                                <span class="gas-stat__icon" style="width: 34px; height: 34px; border-radius: 10px; background: var(--gas-violet-bg); color: var(--gas-violet);">@Iconos.Svg("shield")</span>
+                                <div class="gas-person__text">
+                                    <span class="gas-person__name">
+                                        @rol.Nombre
+                                        @if (rol.EsBase)
+                                        {
+                                            <span class="gas-badge gas-badge--plain ms-1">Base</span>
+                                        }
+                                    </span>
+                                    <span class="gas-person__email">@rol.Descripcion</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="gas-chip gas-chip--info" style="pointer-events: none;">
+                                @Iconos.Svg("users") <span class="gas-chip__count">@rol.Usuarios</span>
+                            </span>
+                        </td>
+                        <td>
+                            @if (rol.Nombre == RolesBase.Admin)
+                            {
+                                <span class="gas-badge gas-badge--dark">Acceso total</span>
+                            }
+                            else
+                            {
+                                <span class="gas-chip @(rol.Permisos > 0 ? "gas-chip--success" : "gas-chip--warning")" style="pointer-events: none;">
+                                    @Iconos.Svg("shield") <span class="gas-chip__count">@rol.Permisos</span>
+                                </span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = rol.Id })">
+                                @if (Model.PuedeGestionar && rol.Nombre != RolesBase.Admin)
+                                {
+                                    @Iconos.Svg("pencil") <span>Editar permisos</span>
+                                }
+                                else
+                                {
+                                    @Iconos.Svg("eye") <span>Ver</span>
+                                }
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@section Modal {
+    @if (Model.ModalNuevo is not null)
+    {
+        <partial name="_RolNuevoModal" model="Model.ModalNuevo" />
+    }
+}

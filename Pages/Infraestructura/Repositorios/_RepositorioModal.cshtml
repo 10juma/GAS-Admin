@@ -1,0 +1,105 @@
+@model GAS.Admin.Pages.Infraestructura.Repositorios.RepositorioModalVm
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-repo-nuevo" : $"form-repo-{Model.Id}";
+    var i = Model.Input;
+    var responsable = ("Input.ResponsableId", $"{formId}-resp", i.ResponsableId, Model.Responsables, off);
+}
+<div data-size="lg" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg("git")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@(Model.EsNuevo ? "Nuevo repositorio" : i.Nombre)</h2>
+            @if (!Model.EsNuevo)
+            {
+                <div class="gas-badges mt-2">
+                    @foreach (var a in Model.Ambientes) { <span class="gas-badge gas-badge--info">@Iconos.Svg("server") @a</span> }
+                    <partial name="_Trazabilidad" model="(Model.CreadoUtc, Model.CreadoPor, Model.ModificadoUtc, Model.ModificadoPor)" />
+                </div>
+            }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Infraestructura/Repositorios/Index" asp-page-handler="Guardar" asp-route-id="@Model.Id">
+            <div class="row g-3">
+                <div class="col-12">
+                    <section class="gas-card">
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-nombre">Nombre</label>
+                                    <input id="@formId-nombre" name="Input.Nombre" value="@i.Nombre" class="form-control" maxlength="150" disabled="@off" placeholder="Ej. revendo-web" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-prod">Producto</label>
+                                    <select id="@formId-prod" name="Input.ProductoId" class="form-select" disabled="@off">
+                                        <option value="">Ninguno (interno)</option>
+                                        @foreach (var p in Model.Productos) { <option value="@p.Id" selected="@(p.Id == i.ProductoId)">@p.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label" for="@formId-url">URL</label>
+                                    <input id="@formId-url" name="Input.Url" value="@i.Url" class="form-control" maxlength="500" disabled="@off" placeholder="https://github.com/…" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-prov">Proveedor</label>
+                                    <select id="@formId-prov" name="Input.ProveedorId" class="form-select" disabled="@off">
+                                        <option value="">Ninguno</option>
+                                        @foreach (var s in Model.Servicios) { <option value="@s.Id" selected="@(s.Id == i.ProveedorId)">@s.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-rama">Rama principal</label>
+                                    <input id="@formId-rama" name="Input.RamaPrincipal" value="@i.RamaPrincipal" class="form-control" maxlength="100" disabled="@off" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-vis">Visibilidad</label>
+                                    <select id="@formId-vis" name="Input.Visibilidad" class="form-select" disabled="@off">
+                                        @foreach (var v in Etiquetas.Valores<VisibilidadRepositorio>()) { <option value="@v" selected="@(v == i.Visibilidad)">@Etiquetas.Texto(v)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-arch">Estado</label>
+                                    <select id="@formId-arch" name="Input.Archivado" class="form-select" disabled="@off">
+                                        <option value="false" selected="@(!i.Archivado)">Activo</option>
+                                        <option value="true" selected="@i.Archivado">Archivado</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label" for="@formId-tec">Tecnología</label>
+                                    <input id="@formId-tec" name="Input.Tecnologia" value="@i.Tecnologia" class="form-control" maxlength="200" disabled="@off" placeholder="Ej. .NET 10, Razor Pages, SQL Server" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-resp">Responsable</label>
+                                    <partial name="_SelectResponsable" model="responsable" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-notas">Notas</label>
+                                    <textarea id="@formId-notas" name="Input.Notas" class="form-control" rows="3" maxlength="2000" disabled="@off">@i.Notas</textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <form method="post" asp-page="/Infraestructura/Repositorios/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id"
+                  data-confirm-title="¿Eliminar @i.Nombre?" data-confirm="Solo se borra el registro en GAS-Admin, no el repositorio real."
+                  data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Eliminar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg(Model.EsNuevo ? "check" : "save") @(Model.EsNuevo ? "Registrar" : "Guardar cambios")</button>
+            }
+        </div>
+    </div>
+</div>

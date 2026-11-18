@@ -1,0 +1,115 @@
+@page
+@model GAS.Admin.Pages.Comercial.Catalogo.IndexModel
+@{
+    ViewData["Title"] = "Catálogo comercial";
+    ViewData["Seccion"] = "Comercial";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var extra = new Dictionary<string, string>();
+    if (!string.IsNullOrWhiteSpace(Model.Q)) extra["q"] = Model.Q;
+    var filtros = new List<(string?, string, int, string)> { (null, "Todos", Model.Total, "dark") };
+    filtros.AddRange(Model.PorCategoria.OrderBy(c => c.Key).Select(c => ((string?)c.Key.ToString(), Etiquetas.Texto(c.Key), c.Value, "violet")));
+    var chips = (Pagina: "/Comercial/Catalogo/Index", Actual: Model.Estado, Opciones: (IEnumerable<(string?, string, int, string)>)filtros, Extra: (IDictionary<string, string>?)extra);
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Catálogo comercial</h1>
+        <p>Servicios con precio de referencia y servicios a medida. Las cotizaciones copian estos datos.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo", new { estado = Model.Estado, q = Model.Q })">
+            @Iconos.Svg("plus") Nuevo servicio
+        </button>
+    }
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <partial name="_ChipsEstado" model="chips" />
+        <form method="get" class="d-flex gap-2">
+            @if (!string.IsNullOrEmpty(Model.Estado)) { <input type="hidden" name="estado" value="@Model.Estado" /> }
+            <div class="gas-input-icon">
+                @Iconos.Svg("search")
+                <input name="q" value="@Model.Q" class="form-control" placeholder="Buscar en el catálogo" aria-label="Buscar" style="min-width: 220px;" />
+            </div>
+            <button type="submit" class="btn btn-gas-outline">@Iconos.Svg("filter") Buscar</button>
+        </form>
+    </div>
+
+    @if (Model.Servicios.Count == 0)
+    {
+        <div class="gas-empty">
+            @Iconos.Svg("layers")
+            @(Model.Total == 0 ? "El catálogo está vacío." : "No hay servicios con estos filtros.")
+            @if (Model.Total == 0 && Model.PuedeGestionar)
+            {
+                <button type="button" class="btn btn-gas mt-2" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Agregar el primero</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr>
+                        <th>Servicio</th>
+                        <th>Modalidad</th>
+                        <th>Precio base</th>
+                        <th>Margen</th>
+                        <th>Tiempo</th>
+                        <th>Estado</th>
+                        <th class="text-end"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in Model.Servicios)
+                    {
+                        <tr style="@(s.Estado == EstadoCatalogo.Inactivo ? "opacity: .6;" : "")">
+                            <td>
+                                <div class="gas-person">
+                                    <span class="gas-stat__icon" style="width: 36px; height: 36px; border-radius: 10px;">@Iconos.Svg("layers")</span>
+                                    <span class="gas-person__text">
+                                        <span class="gas-person__name">@s.Nombre</span>
+                                        <span class="gas-person__email">
+                                            @Etiquetas.Texto(s.Categoria)@(s.Producto is null ? "" : " · " + s.Producto.Nombre)
+                                        </span>
+                                    </span>
+                                </div>
+                            </td>
+                            <td><span class="gas-badge @(s.Modalidad == ModalidadCobro.AMedida ? "gas-badge--warning" : "gas-badge--info")">@Etiquetas.Texto(s.Modalidad)</span></td>
+                            <td>
+                                @if (s.PrecioBase is not null)
+                                {
+                                    <strong>@Etiquetas.Dinero(s.PrecioBase, s.Moneda)</strong>
+                                    @if (!string.IsNullOrEmpty(s.Unidad)) { <span class="text-muted"> / @s.Unidad</span> }
+                                }
+                                else
+                                {
+                                    <span class="text-muted">A cotizar</span>
+                                }
+                            </td>
+                            <td><partial name="_Margen" model="s.Margen" /></td>
+                            <td>@(s.TiempoEstimado ?? "—")</td>
+                            <td><span class="gas-badge @Etiquetas.Badge(s.Estado)">@Etiquetas.Texto(s.Estado)</span></td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = s.Id, estado = Model.Estado, q = Model.Q })">
+                                    @if (Model.PuedeGestionar) { @Iconos.Svg("pencil") <span>Editar</span> } else { @Iconos.Svg("eye") <span>Ver</span> }
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="gas-pager"><span>Mostrando @Model.Servicios.Count de @Model.Total servicios</span></div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_ServicioComercialModal" model="Model.Modal" />
+    }
+}

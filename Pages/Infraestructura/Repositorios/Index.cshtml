@@ -1,0 +1,88 @@
+@page
+@model GAS.Admin.Pages.Infraestructura.Repositorios.IndexModel
+@{
+    ViewData["Title"] = "Repositorios";
+    ViewData["Seccion"] = "Infraestructura";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Repositorios</h1>
+        <p>El código de cada producto: dónde vive, su rama principal, tecnología y responsable.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Nuevo repositorio</button>
+    }
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Vista">
+            <a asp-page="Index" class="gas-chip gas-chip--info @(!Model.Archivados ? "is-active" : "")">Activos <span class="gas-chip__count">@Model.Activos</span></a>
+            <a asp-page="Index" asp-route-archivados="true" class="gas-chip @(Model.Archivados ? "is-active" : "")">Archivados <span class="gas-chip__count">@Model.TotalArchivados</span></a>
+        </nav>
+    </div>
+    @if (Model.Repositorios.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("git") No hay repositorios en esta vista.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Repositorio</th><th>Producto</th><th>Tecnología</th><th>Último commit</th><th>Release · PRs</th><th>Ambientes</th><th>Responsable</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var f in Model.Repositorios)
+                    {
+                        var r = f.Repo;
+                        <tr>
+                            <td>
+                                <div class="gas-person__text">
+                                    <span class="gas-person__name">@Iconos.Svg("git") @r.Nombre</span>
+                                    <span class="gas-badges mt-1">
+                                        <span class="gas-badge @(r.Visibilidad == VisibilidadRepositorio.Publico ? "gas-badge--warning" : "gas-badge--plain")">@Iconos.Svg(r.Visibilidad == VisibilidadRepositorio.Publico ? "globe" : "lock") @Etiquetas.Texto(r.Visibilidad)</span>
+                                        @if (f.Proveedor is not null) { <span class="gas-badge gas-badge--plain">@f.Proveedor</span> }
+                                        @if (r.Url is not null) { <a href="@r.Url" target="_blank" rel="noopener noreferrer" class="gas-badge gas-badge--info gas-badge--btn text-decoration-none">@Iconos.Svg("external") Abrir</a> }
+                                    </span>
+                                </div>
+                            </td>
+                            <td>@(f.Producto ?? "—")</td>
+                            <td>@(r.Tecnologia ?? "—")</td>
+                            <td>
+                                @if (f.GitHub is { UltimoCommitSha: not null } g)
+                                {
+                                    <code>@g.ShaCorto</code> <span class="small">@g.UltimoCommitMensaje</span>
+                                    <div class="small text-muted">@r.RamaPrincipal · @g.UltimoCommitAutor · @Fechas.Relativo(g.UltimoCommitUtc).ToLowerInvariant()</div>
+                                }
+                                else if (f.GitHub?.Error is { } err) { <span class="small text-danger">@err</span> }
+                                else { <code>@r.RamaPrincipal</code> }
+                            </td>
+                            <td>
+                                @if (f.GitHub is { } gh)
+                                {
+                                    <span>@(gh.UltimoRelease ?? "sin releases")</span>
+                                    <div class="small text-muted">@gh.PrsAbiertos PR(s) · @gh.IssuesAbiertos issue(s)</div>
+                                }
+                                else { <span class="text-muted">—</span> }
+                            </td>
+                            <td>@f.Ambientes</td>
+                            <td>
+                                @if (f.Responsable is not null) { <span class="gas-avatar gas-avatar--sm @Avatar.Clase(f.Responsable)" title="@f.Responsable">@Avatar.Iniciales(f.Responsable)</span> }
+                            </td>
+                            <td class="text-end"><button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = r.Id })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Editar" : "Ver")</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_RepositorioModal" model="Model.Modal" />
+    }
+}

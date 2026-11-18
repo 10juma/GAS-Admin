@@ -1,0 +1,172 @@
+@model GAS.Admin.Pages.Infraestructura.Ambientes.AmbienteModalVm
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-amb-nuevo" : $"form-amb-{Model.Id}";
+    var i = Model.Input;
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg("server")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@(Model.EsNuevo ? "Nuevo ambiente" : i.Nombre)</h2>
+            @if (Model.EsNuevo)
+            {
+                <div class="gas-modal__subtitle">Un lugar donde corre el producto: por ejemplo "Web producción" o "API staging".</div>
+            }
+            else
+            {
+                <div class="gas-badges mt-2">
+                    <span class="gas-badge @Etiquetas.Badge(i.Tipo)">@Etiquetas.Texto(i.Tipo)</span>
+                    <span class="gas-badge @Etiquetas.Badge(i.Estado)">@Etiquetas.Texto(i.Estado)</span>
+                    @if (Model.Version is not null) { <span class="gas-badge gas-badge--plain">@Iconos.Svg("rocket") @Model.Version</span> }
+                    @if (Model.IncidentesAbiertos > 0) { <span class="gas-badge gas-badge--danger">@Iconos.Svg("alert") @Model.IncidentesAbiertos incidente(s) abierto(s)</span> }
+                    <partial name="_Trazabilidad" model="(Model.CreadoUtc, Model.CreadoPor, Model.ModificadoUtc, Model.ModificadoPor)" />
+                </div>
+            }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Infraestructura/Ambientes/Index"
+              asp-page-handler="@(Model.EsNuevo ? "Crear" : "Guardar")" asp-route-id="@Model.Id">
+            <input type="hidden" name="volver" value="@Model.Volver" />
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Ambiente</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-prod">Producto</label>
+                                    <select id="@formId-prod" name="Input.ProductoId" class="form-select" disabled="@off">
+                                        <option value="">Elegir…</option>
+                                        @foreach (var p in Model.Productos) { <option value="@p.Id" selected="@(p.Id == i.ProductoId)">@p.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-nombre">Nombre</label>
+                                    <input id="@formId-nombre" name="Input.Nombre" value="@i.Nombre" class="form-control" maxlength="150" disabled="@off" placeholder="Ej. Web producción" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-tipo">Tipo</label>
+                                    <select id="@formId-tipo" name="Input.Tipo" class="form-select" disabled="@off">
+                                        @foreach (var t in Etiquetas.Valores<TipoAmbiente>()) { <option value="@t" selected="@(t == i.Tipo)">@Etiquetas.Texto(t)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-plat">Plataforma</label>
+                                    <select id="@formId-plat" name="Input.Plataforma" class="form-select" disabled="@off">
+                                        @foreach (var t in Etiquetas.Valores<PlataformaAmbiente>()) { <option value="@t" selected="@(t == i.Plataforma)">@Etiquetas.Texto(t)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-estado">Estado</label>
+                                    <select id="@formId-estado" name="Input.Estado" class="form-select" disabled="@off">
+                                        @foreach (var t in Etiquetas.Valores<EstadoAmbiente>()) { <option value="@t" selected="@(t == i.Estado)">@Etiquetas.Texto(t)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-url">URL</label>
+                                    <input id="@formId-url" name="Input.Url" value="@i.Url" class="form-control" maxlength="500" disabled="@off" placeholder="https://" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><div><h2>@Iconos.Svg("git") Código y hosting</h2><p>De dónde sale y dónde corre.</p></div></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-host">Hosting</label>
+                                    <select id="@formId-host" name="Input.HostingId" class="form-select" disabled="@off">
+                                        <option value="">Ninguno</option>
+                                        @foreach (var s in Model.Servicios) { <option value="@s.Id" selected="@(s.Id == i.HostingId)">@s.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-7">
+                                    <label class="form-label" for="@formId-repo">Repositorio</label>
+                                    <select id="@formId-repo" name="Input.RepositorioId" class="form-select" disabled="@off">
+                                        <option value="">Ninguno</option>
+                                        @foreach (var r in Model.Repositorios) { <option value="@r.Id" selected="@(r.Id == i.RepositorioId)">@r.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label" for="@formId-rama">Rama</label>
+                                    <input id="@formId-rama" name="Input.Rama" value="@i.Rama" class="form-control" maxlength="100" disabled="@off" placeholder="main" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-@(Model.EsNuevo ? "12" : "5")">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("note") Notas</h2></div>
+                        <div class="gas-card__body">
+                            <textarea name="Input.Notas" class="form-control" rows="4" maxlength="2000" disabled="@off" placeholder="Variables relevantes (sin valores secretos), dependencias, cómo desplegar…">@i.Notas</textarea>
+                        </div>
+                    </section>
+                </div>
+
+                @if (!Model.EsNuevo)
+                {
+                    <div class="col-lg-7">
+                        <section class="gas-card h-100">
+                            <div class="gas-card__header">
+                                <div><h2>@Iconos.Svg("rocket") Despliegues</h2><p>Bitácora del ambiente, del más reciente al más antiguo.</p></div>
+                                @if (Model.PuedeGestionar)
+                                {
+                                    <button type="button" class="btn btn-sm btn-gas" data-modal-url="@Url.Page("/Infraestructura/Ambientes/Index", "Despliegue", new { ambienteId = Model.Id, volver = Model.Volver })">@Iconos.Svg("plus") Registrar</button>
+                                }
+                            </div>
+                            @if (Model.Despliegues.Count == 0)
+                            {
+                                <div class="gas-empty py-3">@Iconos.Svg("rocket") Sin despliegues registrados.</div>
+                            }
+                            else
+                            {
+                                <ul class="gas-timeline">
+                                    @foreach (var d in Model.Despliegues)
+                                    {
+                                        <li>
+                                            <span class="gas-timeline__dot @(d.Resultado switch { ResultadoDespliegue.Exitoso => "gas-timeline__dot--success", ResultadoDespliegue.ConProblemas => "gas-timeline__dot--warning", _ => "gas-timeline__dot--danger" })"></span>
+                                            <div class="gas-timeline__body">
+                                                <strong>@d.Version <span class="gas-badge @Etiquetas.Badge(d.Resultado) ms-1">@Etiquetas.Texto(d.Resultado)</span></strong>
+                                                <span>@Fechas.Formato(d.FechaUtc)@(d.Realizo is null ? "" : $" · {d.Realizo}")@(d.Referencia is null ? "" : $" · {d.Referencia}")</span>
+                                                @if (d.Notas is not null) { <span class="small">@d.Notas</span> }
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </section>
+                    </div>
+                }
+            </div>
+        </form>
+    </div>
+
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <form method="post" asp-page="/Infraestructura/Ambientes/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id"
+                  data-confirm-title="¿Eliminar @i.Nombre?"
+                  data-confirm="Se borrará también su bitácora de despliegues. Si tiene incidentes o credenciales no se podrá; márcalo como Inactivo."
+                  data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                <input type="hidden" name="volver" value="@Model.Volver" />
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Eliminar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">@if (Model.EsNuevo) { @Iconos.Svg("check") <span>Crear ambiente</span> } else { @Iconos.Svg("save") <span>Guardar cambios</span> }</button>
+            }
+        </div>
+    </div>
+</div>

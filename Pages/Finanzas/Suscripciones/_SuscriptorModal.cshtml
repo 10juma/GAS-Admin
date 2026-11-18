@@ -1,0 +1,85 @@
+@model GAS.Admin.Pages.Finanzas.Suscripciones.SuscriptorModalVm
+@using GAS.Admin.Services.Stripe
+@{
+    var s = Model.Suscriptor;
+    var formId = $"form-susc-{s.Id}";
+}
+<div data-size="lg" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon gas-modal__icon--violet">@Iconos.Svg("users")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@s.Visible</h2>
+            <div class="gas-modal__subtitle">@Model.Producto · @(s.Email ?? "sin correo") · <code>@s.StripeId</code></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <div class="row g-3">
+            <div class="col-12">
+                <section class="gas-card">
+                    <div class="gas-card__header"><div><h2>@Iconos.Svg("building") Cliente de GAS</h2><p>Solo si es una empresa con la que hay relación comercial. Sus cobros en Finanzas también quedan ligados.</p></div></div>
+                    <div class="gas-card__body">
+                        <form id="@formId" method="post" asp-page="/Finanzas/Suscripciones/Index" asp-page-handler="Vincular" asp-route-id="@s.Id">
+                            <input type="hidden" name="volver" value="@Model.Volver" />
+                            <select name="clienteId" class="form-select" disabled="@(!Model.PuedeGestionar)" aria-label="Cliente de GAS">
+                                <option value="">Sin cliente (solo suscriptor)</option>
+                                @foreach (var c in Model.Clientes) { <option value="@c.Id" selected="@(c.Id == s.ClienteId)">@c.Nombre</option> }
+                            </select>
+                        </form>
+                    </div>
+                </section>
+            </div>
+            <div class="col-md-6">
+                <section class="gas-card h-100">
+                    <div class="gas-card__header"><h2>@Iconos.Svg("refresh") Suscripciones</h2></div>
+                    @if (Model.Suscripciones.Count == 0) { <div class="gas-empty py-3">Sin suscripciones.</div> }
+                    else
+                    {
+                        <ul class="gas-timeline">
+                            @foreach (var x in Model.Suscripciones)
+                            {
+                                <li>
+                                    <span class="gas-timeline__dot @(x.CuentaEnMrr ? "gas-timeline__dot--success" : x.Estado == "canceled" ? "" : "gas-timeline__dot--warning")"></span>
+                                    <div class="gas-timeline__body">
+                                        <strong>@(x.Plan ?? "Suscripción") <span class="gas-badge @ServicioStripe.TonoEstado(x.Estado) ms-1">@ServicioStripe.TextoEstado(x.Estado)</span></strong>
+                                        <span>@Etiquetas.Dinero(x.MontoMensual, x.Moneda) al mes@(x.InicioUtc is null ? "" : $" · desde {Fechas.ALocal(x.InicioUtc.Value):dd/MM/yyyy}")</span>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            </div>
+            <div class="col-md-6">
+                <section class="gas-card h-100">
+                    <div class="gas-card__header"><h2>@Iconos.Svg("note") Últimas facturas</h2></div>
+                    @if (Model.Facturas.Count == 0) { <div class="gas-empty py-3">Sin facturas sincronizadas.</div> }
+                    else
+                    {
+                        <ul class="gas-timeline">
+                            @foreach (var f in Model.Facturas)
+                            {
+                                <li>
+                                    <span class="gas-timeline__dot @(f.Estado == "paid" ? "gas-timeline__dot--success" : f.Fallida ? "gas-timeline__dot--danger" : "")"></span>
+                                    <div class="gas-timeline__body">
+                                        <strong>@Etiquetas.Dinero(f.Total, f.Moneda) <span class="gas-badge @ServicioStripe.TonoEstado(f.Estado) ms-1">@ServicioStripe.TextoEstado(f.Estado)</span></strong>
+                                        <span>@(f.Numero ?? f.StripeId) · @Fechas.ALocal(f.FechaUtc).ToString("dd/MM/yyyy")@(f.Comision is null ? "" : $" · comisión {Etiquetas.Dinero(f.Comision, f.MonedaComision ?? f.Moneda)}")</span>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") Cerrar</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg("save") Guardar cliente</button>
+            }
+        </div>
+    </div>
+</div>

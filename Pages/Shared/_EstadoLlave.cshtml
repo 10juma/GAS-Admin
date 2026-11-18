@@ -1,0 +1,20 @@
+@model GAS.Admin.Services.Configuracion.EstadoLlave
+@* Estado de una llave sin revelar su valor. *@
+@if (Model.Ilegible)
+{
+    <span class="gas-badge gas-badge--danger" title="Se cifró con otra llave maestra: vuelve a capturarla.">@Iconos.Svg("alert") No se puede leer</span>
+}
+else if (!Model.Configurada)
+{
+    <span class="gas-badge gas-badge--danger">@Iconos.Svg("x") Falta</span>
+}
+else if (Model.EnBaseDeDatos)
+{
+    <span class="gas-badge gas-badge--success" title="@(Model.ModificadoPor is null ? "" : $"Capturada por {Model.ModificadoPor}") @(Model.ModificadoUtc is null ? "" : Fechas.Formato(Model.ModificadoUtc))">
+        @Iconos.Svg("check") @(Model.EsSecreto ? $"Guardada {Model.Pista}" : "Guardada")
+    </span>
+}
+else
+{
+    <span class="gas-badge gas-badge--info" title="Viene de user-secrets o de una variable de entorno del servidor.">@Iconos.Svg("server") Del servidor @(Model.EsSecreto ? Model.Pista : "")</span>
+}

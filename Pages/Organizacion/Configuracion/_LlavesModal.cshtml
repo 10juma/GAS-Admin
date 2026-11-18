@@ -1,0 +1,115 @@
+@model GAS.Admin.Pages.Organizacion.Configuracion.LlavesModalVm
+@{
+    var g = Model.Grupo;
+    var formId = "form-llaves-" + g.Id.Replace(':', '-');
+}
+<div data-size="lg" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg(g.Icono)</span>
+        <div>
+            <h2 class="modal-title">@g.Titulo</h2>
+            <div class="gas-modal__subtitle">@g.Descripcion</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        @if (!Model.LlaveMaestra)
+        {
+            <div class="gas-callout">
+                <div class="gas-callout__text">
+                    <strong>Falta la llave maestra del servidor</strong>
+                    Sin ella no se pueden cifrar ni guardar llaves. En el servidor define <code>Seguridad__LlaveMaestra</code>.
+                </div>
+            </div>
+        }
+        <form id="@formId" method="post" novalidate autocomplete="off" asp-page="/Organizacion/Configuracion/Index" asp-page-handler="Guardar"
+              asp-route-grupo="@g.Id" asp-route-volver="@Model.Volver">
+            <section class="gas-card">
+                <div class="gas-card__header">
+                    <div>
+                        <h2>@Iconos.Svg("key") Llaves</h2>
+                        <p>Se guardan cifradas. Las llaves secretas nunca se vuelven a mostrar: para cambiarlas escribe una nueva.</p>
+                    </div>
+                </div>
+                <div class="gas-card__body">
+                    <div class="row g-3">
+                        @for (var i = 0; i < g.Campos.Count; i++)
+                        {
+                            var c = g.Campos[i];
+                            var e = Model.Estados[c.Clave];
+                            var id = $"{formId}-{i}";
+                            <div class="col-12">
+                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
+                                    <label class="form-label mb-0" for="@id">@c.Etiqueta</label>
+                                    <partial name="_EstadoLlave" model="e" />
+                                </div>
+                                @if (c.EsSecreto)
+                                {
+                                    <div class="d-flex gap-2">
+                                        <input id="@id" name="valores" type="password" class="form-control font-monospace" maxlength="4000"
+                                               autocomplete="new-password" spellcheck="false" data-llave-secreta
+                                               placeholder="@(e.Configurada ? "Escribe una nueva para reemplazarla" : c.Ejemplo ?? "Pega aquí la llave")" disabled="@(!Model.LlaveMaestra)" />
+                                        <button type="button" class="btn btn-gas-outline" data-mostrar-llave title="Mostrar u ocultar lo que escribes">@Iconos.Svg("eye")</button>
+                                        @if (c.Generable)
+                                        {
+                                            <button type="button" class="btn btn-gas-outline text-nowrap" data-generar-llave>@Iconos.Svg("refresh") Generar</button>
+                                        }
+                                    </div>
+                                    @if (c.Generable)
+                                    {
+                                        <div class="small text-warning-emphasis mt-1 d-none" data-aviso-generada>
+                                            Copia este valor en el producto antes de guardar: después ya no se podrá ver.
+                                            <button type="button" class="gas-link-btn" data-copiar-llave>@Iconos.Svg("copy") Copiar</button>
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <input id="@id" name="valores" class="form-control" maxlength="4000" value="@e.Valor" placeholder="@c.Ejemplo" disabled="@(!Model.LlaveMaestra)" />
+                                }
+                                @if (c.Ayuda is not null)
+                                {
+                                    <div class="form-text">@c.Ayuda</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </section>
+            @if (g.Instrucciones is not null)
+            {
+                <div class="gas-callout mt-3 mb-0"><div class="gas-callout__text">@g.Instrucciones</div></div>
+            }
+        </form>
+        @foreach (var c in g.Campos.Where(c => Model.Estados[c.Clave].EnBaseDeDatos))
+        {
+            <form id="@formId-quitar-@g.Campos.ToList().IndexOf(c)" method="post" asp-page="/Organizacion/Configuracion/Index" asp-page-handler="Quitar"
+                  asp-route-grupo="@g.Id" asp-route-clave="@c.Clave" asp-route-volver="@Model.Volver"
+                  data-confirm-title="¿Quitar @c.Etiqueta?" data-confirm="Se borra de GAS-Admin y deja de usarse de inmediato. Lo que dependa de ella dejará de funcionar."
+                  data-confirm-ok="Quitar" data-confirm-tone="danger"></form>
+        }
+    </div>
+    <div class="modal-footer">
+        @{ var quitables = g.Campos.Select((c, i) => (c, i)).Where(x => Model.Estados[x.c.Clave].EnBaseDeDatos).ToList(); }
+        @if (quitables.Count == 1)
+        {
+            <button type="submit" form="@formId-quitar-@quitables[0].i" class="btn btn-gas-danger">@Iconos.Svg("trash") Quitar @quitables[0].c.Etiqueta.ToLowerInvariant()</button>
+        }
+        else if (quitables.Count > 1)
+        {
+            <div class="dropup">
+                <button type="button" class="btn btn-gas-danger" data-bs-toggle="dropdown" aria-expanded="false">@Iconos.Svg("trash") Quitar…</button>
+                <div class="dropdown-menu">
+                    @foreach (var (c, i) in quitables)
+                    {
+                        <button type="submit" form="@formId-quitar-@i" class="dropdown-item">@c.Etiqueta</button>
+                    }
+                </div>
+            </div>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") Cancelar</button>
+            <button type="submit" form="@formId" class="btn btn-gas" disabled="@(!Model.LlaveMaestra)">@Iconos.Svg("save") Guardar</button>
+        </div>
+    </div>
+</div>

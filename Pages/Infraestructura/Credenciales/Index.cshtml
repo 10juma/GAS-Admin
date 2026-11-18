@@ -1,0 +1,95 @@
+@page
+@model GAS.Admin.Pages.Infraestructura.Credenciales.IndexModel
+@{
+    ViewData["Title"] = "Credenciales";
+    ViewData["Seccion"] = "Infraestructura";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var vista = Model.Vista ?? "activas";
+    string Fecha(DateOnly? f, string vacio = "—")
+    {
+        if (f is null) return vacio;
+        var d = f.Value.DayNumber - Model.Hoy.DayNumber;
+        return $"{f:dd/MM/yyyy} · " + (d < 0 ? $"hace {-d} d" : d == 0 ? "hoy" : $"en {d} d");
+    }
+    string Tono(DateOnly? f) => f is null ? "gas-badge--plain" : f < Model.Hoy ? "gas-badge--danger" : f <= Model.Hoy.AddDays(30) ? "gas-badge--warning" : "gas-badge--plain";
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Credenciales</h1>
+        <p>Inventario de llaves, tokens y contraseñas: dónde están guardadas, quién responde y cuándo rotarlas. GAS-Admin nunca guarda el valor.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Nueva credencial</button>
+    }
+</div>
+
+<div class="gas-callout">
+    <span class="gas-stat__icon">@Iconos.Svg("shield")</span>
+    <div class="gas-callout__text"><strong>Solo referencias</strong>Escribe dónde vive el secreto (por ejemplo "1Password › GAS › Stripe live"). Si se pega algo que parece una llave o contraseña, se rechaza y no se guarda.</div>
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Vista">
+            <a asp-page="Index" class="gas-chip gas-chip--success @(vista == "activas" ? "is-active" : "")">Activas <span class="gas-chip__count">@Model.Activas</span></a>
+            <a asp-page="Index" asp-route-vista="atender" class="gas-chip gas-chip--warning @(vista == "atender" ? "is-active" : "")">Por rotar o vencer <span class="gas-chip__count">@Model.PorAtender</span></a>
+            <a asp-page="Index" asp-route-vista="revocadas" class="gas-chip @(vista == "revocadas" ? "is-active" : "")">Revocadas <span class="gas-chip__count">@Model.Revocadas</span></a>
+        </nav>
+    </div>
+    @if (Model.Credenciales.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("key") No hay credenciales en esta vista.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Credencial</th><th>Dónde se usa</th><th>Referencia</th><th>Próxima rotación</th><th>Vence</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var f in Model.Credenciales)
+                    {
+                        var c = f.C;
+                        <tr style="@(c.Estado == EstadoCredencial.Revocada ? "opacity: .6;" : "")">
+                            <td>
+                                <div class="gas-person__text">
+                                    <span class="gas-person__name">@Iconos.Svg("key") @c.Nombre</span>
+                                    <span class="gas-badges mt-1">
+                                        <span class="gas-badge gas-badge--plain">@Etiquetas.Texto(c.Tipo)</span>
+                                        @if (c.Estado == EstadoCredencial.Revocada) { <span class="gas-badge gas-badge--danger">Revocada</span> }
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                @(f.Producto ?? "General")@(f.Ambiente is null ? "" : $" · {f.Ambiente}")
+                                <div class="small text-muted">@f.Servicio @(f.Responsable is null ? "" : $"· {f.Responsable}")</div>
+                            </td>
+                            <td><span class="gas-secret">@c.Referencia</span></td>
+                            <td><span class="gas-badge @Tono(c.ProximaRotacion)">@Fecha(c.ProximaRotacion, "sin política")</span></td>
+                            <td><span class="gas-badge @Tono(c.Vence)">@Fecha(c.Vence, "no vence")</span></td>
+                            <td class="text-end text-nowrap">
+                                @if (Model.PuedeGestionar && c.Estado == EstadoCredencial.Activa && c.RotacionDias is not null)
+                                {
+                                    <form method="post" asp-page-handler="Rotada" asp-route-id="@c.Id" asp-route-vista="@Model.Vista" class="d-inline"
+                                          data-confirm-title="¿Marcar @c.Nombre como rotada hoy?" data-confirm="Confirma que ya generaste el nuevo valor y lo actualizaste en el gestor de secretos y en los ambientes."
+                                          data-confirm-ok="Sí, ya la roté">
+                                        <button type="submit" class="btn btn-sm btn-gas">@Iconos.Svg("refresh") Rotada</button>
+                                    </form>
+                                }
+                                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = c.Id })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Editar" : "Ver")</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_CredencialModal" model="Model.Modal" />
+    }
+}

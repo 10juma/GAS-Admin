@@ -1,0 +1,102 @@
+@page
+@model GAS.Admin.Pages.Infraestructura.Dominios.IndexModel
+@{
+    ViewData["Title"] = "Dominios";
+    ViewData["Seccion"] = "Infraestructura";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var vista = Model.Vista ?? "activos";
+    string Dias(DateOnly f)
+    {
+        var d = f.DayNumber - Model.Hoy.DayNumber;
+        return d < 0 ? $"venció hace {-d} d" : d == 0 ? "hoy" : $"en {d} d";
+    }
+    string Tono(DateOnly? f) => f is null ? "gas-badge--plain" : f < Model.Hoy ? "gas-badge--danger" : Model.Proximo(f) ? "gas-badge--warning" : "gas-badge--plain";
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Dominios</h1>
+        <p>Dominios y certificados de cada producto. Con costo, su renovación genera un cargo esperado en Finanzas.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Nuevo dominio</button>
+    }
+</div>
+
+<div class="gas-grid gas-grid--3 mb-4">
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("globe")</span>
+        <div><div class="gas-stat__label">Dominios activos</div><div class="gas-stat__value">@Model.Activos</div><div class="gas-stat__hint">@(Model.Total - Model.Activos) cancelados o transferidos</div></div>
+    </div>
+    <div class="gas-card gas-stat @(Model.PorVencer > 0 ? "gas-stat--warning" : "gas-stat--muted")">
+        <span class="gas-stat__icon">@Iconos.Svg("calendar")</span>
+        <div><div class="gas-stat__label">Por vencer</div><div class="gas-stat__value">@Model.PorVencer</div><div class="gas-stat__hint">dominio o SSL en 60 días</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--violet">
+        <span class="gas-stat__icon">@Iconos.Svg("dollar")</span>
+        <div>
+            <div class="gas-stat__label">Costo anual</div>
+            <div class="gas-stat__value gas-stat__value--money">@(Model.CostoAnualUsd > 0 ? Etiquetas.Dinero(Model.CostoAnualUsd, "USD") : Etiquetas.Dinero(Model.CostoAnualMxn))</div>
+            <div class="gas-stat__hint">@(Model.CostoAnualUsd > 0 && Model.CostoAnualMxn > 0 ? $"+ {Etiquetas.Dinero(Model.CostoAnualMxn)}" : "equivalente por año")</div>
+        </div>
+    </div>
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Vista">
+            <a asp-page="Index" class="gas-chip gas-chip--info @(vista == "activos" ? "is-active" : "")">Activos <span class="gas-chip__count">@Model.Activos</span></a>
+            <a asp-page="Index" asp-route-vista="porvencer" class="gas-chip gas-chip--warning @(vista == "porvencer" ? "is-active" : "")">Por vencer <span class="gas-chip__count">@Model.PorVencer</span></a>
+            <a asp-page="Index" asp-route-vista="todos" class="gas-chip gas-chip--dark @(vista == "todos" ? "is-active" : "")">Todos <span class="gas-chip__count">@Model.Total</span></a>
+        </nav>
+    </div>
+    @if (Model.Dominios.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("globe") No hay dominios en esta vista.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Dominio</th><th>Producto</th><th>Registrador · DNS</th><th>Vence</th><th>SSL</th><th class="text-end">Renovación</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var f in Model.Dominios)
+                    {
+                        var d = f.Dominio;
+                        <tr style="@(d.Estado == EstadoDominio.Activo ? "" : "opacity: .6;")">
+                            <td>
+                                <div class="gas-person__text">
+                                    <span class="gas-person__name">@Iconos.Svg("globe") @d.Nombre</span>
+                                    <span class="gas-badges mt-1">
+                                        @if (d.Estado != EstadoDominio.Activo) { <span class="gas-badge @Etiquetas.Badge(d.Estado)">@Etiquetas.Texto(d.Estado)</span> }
+                                        @if (d.RenovacionAutomatica) { <span class="gas-badge gas-badge--success">@Iconos.Svg("refresh") Automática</span> }
+                                    </span>
+                                </div>
+                            </td>
+                            <td>@(f.Producto ?? "—")</td>
+                            <td>@(f.Registrador ?? "—")<div class="small text-muted">@d.Dns</div></td>
+                            <td>
+                                @if (d.FechaVencimiento is null) { <span class="text-muted">—</span> }
+                                else { <span class="gas-badge @Tono(d.FechaVencimiento)">@d.FechaVencimiento.Value.ToString("dd/MM/yyyy")</span><div class="small text-muted">@Dias(d.FechaVencimiento.Value)</div> }
+                            </td>
+                            <td>
+                                @if (d.SslVence is null) { <span class="text-muted">—</span> }
+                                else { <span class="gas-badge @Tono(d.SslVence)">@Iconos.Svg("lock") @d.SslVence.Value.ToString("dd/MM/yyyy")</span><div class="small text-muted">@(d.SslEmisor ?? Dias(d.SslVence.Value))</div> }
+                            </td>
+                            <td class="text-end gas-num">@Etiquetas.Dinero(d.Costo, d.Moneda)<div class="small text-muted">cada @(d.AniosRenovacion == 1 ? "año" : $"{d.AniosRenovacion} años")</div></td>
+                            <td class="text-end"><button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = d.Id })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Editar" : "Ver")</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_DominioModal" model="Model.Modal" />
+    }
+}

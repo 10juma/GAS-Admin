@@ -1,0 +1,140 @@
+@model GAS.Admin.Pages.Infraestructura.Credenciales.CredencialModalVm
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-cred-nueva" : $"form-cred-{Model.Id}";
+    var i = Model.Input;
+    var responsable = ("Input.ResponsableId", $"{formId}-resp", i.ResponsableId, Model.Responsables, off);
+    var politicas = new int?[] { null, 30, 90, 180, 365 }.Union(new[] { i.RotacionDias }).Distinct().ToList();
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg("key")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@(Model.EsNuevo ? "Nueva credencial" : i.Nombre)</h2>
+            @if (Model.EsNuevo)
+            {
+                <div class="gas-modal__subtitle">Solo dónde está guardada y cuándo rotarla. Nunca el valor.</div>
+            }
+            else
+            {
+                <div class="gas-badges mt-2">
+                    <span class="gas-badge @Etiquetas.Badge(i.Estado)">@Etiquetas.Texto(i.Estado)</span>
+                    <partial name="_Trazabilidad" model="(Model.CreadoUtc, Model.CreadoPor, Model.ModificadoUtc, Model.ModificadoPor)" />
+                </div>
+            }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Infraestructura/Credenciales/Index" asp-page-handler="Guardar" asp-route-id="@Model.Id" autocomplete="off">
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Credencial</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-7">
+                                    <label class="form-label" for="@formId-nombre">Nombre</label>
+                                    <input id="@formId-nombre" name="Input.Nombre" value="@i.Nombre" class="form-control" maxlength="150" disabled="@off" placeholder="Ej. Stripe secret key (live)" />
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label" for="@formId-tipo">Tipo</label>
+                                    <select id="@formId-tipo" name="Input.Tipo" class="form-select" disabled="@off">
+                                        @foreach (var t in Etiquetas.Valores<TipoCredencial>()) { <option value="@t" selected="@(t == i.Tipo)">@Etiquetas.Texto(t)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-ref">Dónde está guardada</label>
+                                    <input id="@formId-ref" name="Input.Referencia" value="@i.Referencia" class="form-control" maxlength="300" disabled="@off" placeholder="Ej. 1Password › GAS › Revendo › Stripe live" spellcheck="false" />
+                                    <div class="form-text">@Iconos.Svg("shield") Si pegas algo que parece una llave o contraseña, se rechaza.</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-prod">Producto</label>
+                                    <select id="@formId-prod" name="Input.ProductoId" class="form-select" disabled="@off" data-filtra="cred-amb">
+                                        <option value="">General</option>
+                                        @foreach (var p in Model.Productos) { <option value="@p.Id" selected="@(p.Id == i.ProductoId)">@p.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-amb">Ambiente</label>
+                                    <select id="@formId-amb" name="Input.AmbienteId" class="form-select" disabled="@off" data-filtrado="cred-amb">
+                                        <option value="">Todos / ninguno</option>
+                                        @foreach (var a in Model.Ambientes) { <option value="@a.Id" data-padre="@a.Extra" selected="@(a.Id == i.AmbienteId)">@a.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-serv">Servicio</label>
+                                    <select id="@formId-serv" name="Input.ServicioExternoId" class="form-select" disabled="@off">
+                                        <option value="">Ninguno</option>
+                                        @foreach (var s in Model.Servicios) { <option value="@s.Id" selected="@(s.Id == i.ServicioExternoId)">@s.Nombre</option> }
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><div><h2>@Iconos.Svg("refresh") Rotación y vigencia</h2><p>Se avisa 30 días antes.</p></div></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-rot">Última rotación</label>
+                                    <input id="@formId-rot" name="Input.UltimaRotacion" value="@i.UltimaRotacion?.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-pol">Rotar cada</label>
+                                    <select id="@formId-pol" name="Input.RotacionDias" class="form-select" disabled="@off">
+                                        @foreach (var p in politicas)
+                                        {
+                                            <option value="@(p?.ToString() ?? "")" selected="@(p == i.RotacionDias)">@(p is null ? "Sin política" : p == 365 ? "1 año" : p == 180 ? "6 meses" : p == 90 ? "3 meses" : p == 30 ? "1 mes" : $"{p} días")</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-vence">Vence</label>
+                                    <input id="@formId-vence" name="Input.Vence" value="@i.Vence?.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-estado">Estado</label>
+                                    <select id="@formId-estado" name="Input.Estado" class="form-select" disabled="@off">
+                                        @foreach (var e in Etiquetas.Valores<EstadoCredencial>()) { <option value="@e" selected="@(e == i.Estado)">@Etiquetas.Texto(e)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-resp">Responsable</label>
+                                    <partial name="_SelectResponsable" model="responsable" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-12">
+                    <section class="gas-card">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("note") Notas</h2></div>
+                        <div class="gas-card__body">
+                            <textarea name="Input.Notas" class="form-control" rows="2" maxlength="2000" disabled="@off" placeholder="Permisos que tiene, dónde está configurada, cómo rotarla… (nunca el valor)">@i.Notas</textarea>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <form method="post" asp-page="/Infraestructura/Credenciales/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id"
+                  data-confirm-title="¿Quitar @i.Nombre del inventario?" data-confirm="Solo se borra el registro; el secreto real sigue en el gestor. Si ya no se usa, márcala como Revocada."
+                  data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Eliminar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg(Model.EsNuevo ? "check" : "save") @(Model.EsNuevo ? "Registrar" : "Guardar cambios")</button>
+            }
+        </div>
+    </div>
+</div>

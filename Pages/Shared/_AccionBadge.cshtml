@@ -1,0 +1,13 @@
+@model string
+@using GAS.Admin.Services.Auditoria
+@{
+    var info = AccionesAuditoria.Info(Model);
+    var clase = info.Tono switch
+    {
+        TonoAccion.Exito => "gas-badge--success",
+        TonoAccion.Advertencia => "gas-badge--warning",
+        TonoAccion.Peligro => "gas-badge--danger",
+        _ => ""
+    };
+}
+<span class="gas-badge @clase">@info.Nombre</span>

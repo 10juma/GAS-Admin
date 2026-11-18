@@ -1,0 +1,168 @@
+@page
+@model GAS.Admin.Pages.Comercial.Cotizaciones.IndexModel
+@{
+    ViewData["Title"] = "Cotizaciones";
+    ViewData["Seccion"] = "Comercial";
+    var modalEnvio = ViewData["ModalEnvio"] as GAS.Admin.Pages.Comercial.Cotizaciones.EnvioModalVm;
+    if (Model.Modal is not null || modalEnvio is not null) ViewData["AbrirModal"] = true;
+
+    string Dinero(Dictionary<string, decimal> d) => d.Count == 0 ? "—" : string.Join(" + ", d.OrderBy(x => x.Key).Select(x => Etiquetas.Dinero(x.Value, x.Key)));
+    var extra = new Dictionary<string, string>();
+    if (!string.IsNullOrWhiteSpace(Model.Q)) extra["q"] = Model.Q;
+    var estados = new (string Valor, string Texto, string Tono)[]
+    {
+        ("Borrador", "Borradores", ""),
+        ("Enviada", "Enviadas", "info"),
+        (GAS.Admin.Pages.Comercial.Cotizaciones.IndexModel.FiltroVencidas, "Vencidas", "danger"),
+        ("Aprobada", "Aprobadas", "success"),
+        ("Rechazada", "Rechazadas", "danger"),
+        ("Cancelada", "Canceladas", ""),
+        ("Reemplazada", "Reemplazadas", ""),
+    };
+    var filtros = new List<(string?, string, int, string)> { (null, "Todas", Model.Total, "dark") };
+    filtros.AddRange(estados.Where(e => Model.PorEstado.ContainsKey(e.Valor) || e.Valor is "Borrador" or "Enviada" or "Aprobada")
+        .Select(e => ((string?)e.Valor, e.Texto, Model.PorEstado.GetValueOrDefault(e.Valor), e.Tono)));
+    var chips = (Pagina: "/Comercial/Cotizaciones/Index", Actual: Model.Estado, Opciones: (IEnumerable<(string?, string, int, string)>)filtros, Extra: (IDictionary<string, string>?)extra);
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Cotizaciones</h1>
+        <p>Propuestas con folio y versiones. Se envían en PDF por correo y, al aprobarse, se convierten en trabajo.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Nueva cotización</button>
+    }
+</div>
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("mail")</span>
+        <div><div class="gas-stat__label">Enviadas vigentes</div><div class="gas-stat__value">@Model.Abiertas</div><div class="gas-stat__hint">esperando respuesta del cliente</div></div>
+    </div>
+    <div class="gas-card gas-stat @(Model.PorVencer > 0 ? "gas-stat--warning" : "gas-stat--muted")">
+        <span class="gas-stat__icon">@Iconos.Svg("clock")</span>
+        <div><div class="gas-stat__label">Por vencer (5 días)</div><div class="gas-stat__value">@Model.PorVencer</div><div class="gas-stat__hint">conviene dar seguimiento</div></div>
+    </div>
+    <div class="gas-card gas-stat">
+        <span class="gas-stat__icon">@Iconos.Svg("check")</span>
+        <div class="min-w-0"><div class="gas-stat__label">Aprobado este mes</div><div class="gas-stat__value" style="font-size: 20px; line-height: 1.25;">@Dinero(Model.AprobadoMes)</div><div class="gas-stat__hint">total con IVA</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--violet">
+        <span class="gas-stat__icon">@Iconos.Svg("activity")</span>
+        <div><div class="gas-stat__label">Tasa de aprobación</div><div class="gas-stat__value">@(Model.TasaAprobacion is null ? "—" : (Model.TasaAprobacion.Value * 100).ToString("0") + "%")</div><div class="gas-stat__hint">aprobadas entre aprobadas y rechazadas</div></div>
+    </div>
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <partial name="_ChipsEstado" model="chips" />
+        <form method="get" class="d-flex gap-2">
+            @if (!string.IsNullOrEmpty(Model.Estado)) { <input type="hidden" name="estado" value="@Model.Estado" /> }
+            <div class="gas-input-icon">
+                @Iconos.Svg("search")
+                <input name="q" value="@Model.Q" class="form-control" placeholder="Folio, título o cliente" aria-label="Buscar" style="min-width: 220px;" />
+            </div>
+            <button type="submit" class="btn btn-gas-outline">@Iconos.Svg("filter") Buscar</button>
+        </form>
+    </div>
+
+    @if (Model.Cotizaciones.Count == 0)
+    {
+        <div class="gas-empty">
+            @Iconos.Svg("note")
+            @(Model.Total == 0 ? "Aún no hay cotizaciones." : "No hay cotizaciones con estos filtros.")
+            @if (Model.Total == 0 && Model.PuedeGestionar)
+            {
+                <button type="button" class="btn btn-gas mt-2" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Crear la primera</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr>
+                        <th>Cotización</th>
+                        <th>Cliente</th>
+                        <th class="text-end">Total</th>
+                        <th>Margen</th>
+                        <th>Vigencia</th>
+                        <th>Estado</th>
+                        <th>Responsable</th>
+                        <th class="text-end"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Model.Cotizaciones)
+                    {
+                        var c = f.Cotizacion;
+                        <tr style="@(c.Estado is EstadoCotizacion.Cancelada or EstadoCotizacion.Reemplazada ? "opacity: .6;" : "")">
+                            <td>
+                                <div class="gas-person__text">
+                                    <span class="gas-person__name">@c.FolioCompleto</span>
+                                    <span class="gas-person__email">@c.Titulo@(f.Oportunidad is null ? "" : " · " + f.Oportunidad)</span>
+                                </div>
+                            </td>
+                            <td>@f.Cliente</td>
+                            <td class="text-end"><strong>@Etiquetas.Dinero(c.Total, c.Moneda)</strong></td>
+                            <td><partial name="_Margen" model="c.Margen" /></td>
+                            <td>
+                                @if (f.Vencida)
+                                {
+                                    <span class="gas-badge gas-badge--danger">Vencida @c.FechaVencimiento.ToString("dd/MM")</span>
+                                }
+                                else if (f.DiasRestantes is not null)
+                                {
+                                    <span class="gas-badge @(f.DiasRestantes <= 5 ? "gas-badge--warning" : "gas-badge--plain")" title="Vence el @c.FechaVencimiento.ToString("dd/MM/yyyy")">@Iconos.Svg("clock") @(f.DiasRestantes == 0 ? "Vence hoy" : $"{f.DiasRestantes} d")</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">@c.FechaEmision.ToString("dd/MM/yyyy")</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="gas-badge @(f.Vencida ? "gas-badge--danger" : Etiquetas.Badge(c.Estado))">@(f.Vencida ? "Vencida" : Etiquetas.Texto(c.Estado))</span>
+                                @if (c.TipoTrabajo is not null) { <span class="gas-badge gas-badge--plain ms-1">@Etiquetas.Texto(c.TipoTrabajo.Value)</span> }
+                            </td>
+                            <td>
+                                @if (f.Responsable is not null)
+                                {
+                                    <span class="gas-avatar gas-avatar--sm @Avatar.Clase(f.Responsable)" title="@f.Responsable">@Avatar.Iniciales(f.Responsable)</span>
+                                }
+                            </td>
+                            <td class="text-end text-nowrap">
+                                <a class="btn btn-sm btn-gas-outline" href="@Url.Page("Index", "Pdf", new { id = c.Id })" target="_blank" rel="noopener" title="Ver PDF">@Iconos.Svg("note")</a>
+                                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = c.Id, estado = Model.Estado, q = Model.Q })">
+                                    @if (Model.PuedeGestionar && c.Editable) { @Iconos.Svg("pencil") <span>Editar</span> } else { @Iconos.Svg("eye") <span>Abrir</span> }
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="gas-pager"><span>Mostrando @Model.Cotizaciones.Count de @Model.Total cotizaciones</span></div>
+    }
+    @if (Model.HayMas)
+    {
+        <div class="gas-pager">Se muestran las 300 cotizaciones más recientes. Usa la búsqueda o los filtros para acotar.</div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_CotizacionModal" model="Model.Modal" />
+    }
+    else if (modalEnvio is not null)
+    {
+        <partial name="_EnviarModal" model="modalEnvio" />
+    }
+}
+
+@section Scripts {
+    <script src="~/js/cotizacion.js" asp-append-version="true"></script>
+}

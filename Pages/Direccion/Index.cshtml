@@ -1,0 +1,116 @@
+@page
+@model GAS.Admin.Pages.Direccion.IndexModel
+@using GAS.Admin.Services.Direccion
+@using System.Globalization
+@{
+    ViewData["Title"] = "Tablero de dirección";
+    ViewData["Seccion"] = "Dirección";
+    var mx = CultureInfo.GetCultureInfo("es-MX");
+    var inv = CultureInfo.InvariantCulture;
+    var a = Model.Actual;
+    var esActual = Model.MesVista == ServicioIndicadores.MesActual;
+    string Formato(Indicador i, decimal? v) => v is null ? "—" : i.Formato switch
+    {
+        FormatoIndicador.Dinero => Etiquetas.Dinero(Math.Round(v.Value, 0)).Replace(".00", ""),
+        FormatoIndicador.Porcentaje => (v.Value * 100).ToString(Math.Abs(v.Value) < 0.1m ? "0.##" : "0.#", mx) + "%",
+        FormatoIndicador.Horas => v.Value.ToString("#,0.#", mx) + " h",
+        _ => v.Value.ToString("#,0", mx)
+    };
+    (string Texto, string Clase) Delta(Indicador i, decimal? actual, decimal? anterior)
+    {
+        if (actual is null || anterior is null) return ("sin comparación", "");
+        var d = actual.Value - anterior.Value;
+        if (d == 0) return ("igual que el mes anterior", "");
+        var signo = d > 0 ? "▲" : "▼";
+        var texto = i.Formato switch
+        {
+            FormatoIndicador.Porcentaje => $"{signo} {Math.Abs(d * 100).ToString("0.#", mx)} pts",
+            FormatoIndicador.Dinero => $"{signo} {Etiquetas.Dinero(Math.Round(Math.Abs(d), 0)).Replace(".00", "")}" + (anterior != 0 ? $" ({Math.Abs(d / anterior.Value * 100).ToString("0", mx)}%)" : ""),
+            FormatoIndicador.Horas => $"{signo} {Math.Abs(d).ToString("#,0.#", mx)} h",
+            _ => $"{signo} {Math.Abs(d).ToString("#,0", mx)}"
+        };
+        var clase = i.MejorAlto is null ? "" : (d > 0) == i.MejorAlto.Value ? "is-bien" : "is-mal";
+        return (texto + " vs mes anterior", clase);
+    }
+    var areas = new (AreaIndicador Area, string Titulo, string Icono, string Detalle)[]
+    {
+        (AreaIndicador.Finanzas, "Finanzas", "dollar", "En pesos y sin IVA; por cobrar con IVA."),
+        (AreaIndicador.Comercial, "Comercial", "trend", "Embudo, cotizaciones y cierre."),
+        (AreaIndicador.Operacion, "Operación y equipo", "layers", "Trabajos, horas y capacidad."),
+        (AreaIndicador.Productos, "Productos, soporte e infraestructura", "box", "Cuentas, suscripciones, tickets y disponibilidad."),
+    };
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Tablero de dirección</h1>
+        <p>Los indicadores de toda la empresa en un solo lugar, calculados con los datos de GAS-Admin. Cada mes se guarda su cierre para comparar.</p>
+    </div>
+    <div class="gas-page-header__actions">
+        @if (Model.MesesSinCierre > 0 && Model.PuedeCerrar)
+        {
+            <form method="post" asp-page-handler="Reconstruir" class="d-inline"
+                  data-confirm-title="¿Reconstruir el histórico?" data-confirm="Se calcularán los indicadores del periodo de los meses sin cierre (hasta 12). Los puntuales, como MRR o por cobrar, no se pueden recuperar hacia atrás." data-confirm-ok="Reconstruir">
+                <button type="submit" class="btn btn-gas-outline">@Iconos.Svg("refresh") Reconstruir histórico (@Model.MesesSinCierre)</button>
+            </form>
+        }
+        @if (Model.AnteriorSinCierreCompleto && Model.PuedeCerrar)
+        {
+            <form method="post" asp-page-handler="CerrarAnterior" class="d-inline">
+                <button type="submit" class="btn btn-gas">@Iconos.Svg("save") Guardar cierre de @IndexModel.NombreMes(ServicioIndicadores.MesActual.AddMonths(-1)).ToLowerInvariant()</button>
+            </form>
+        }
+    </div>
+</div>
+
+<div class="gas-toolbar px-0 pt-0">
+    <form method="get" class="d-flex align-items-center gap-2">
+        <label for="mes-vista" class="small text-muted">Mes</label>
+        <select id="mes-vista" name="mes" class="form-select form-select-sm" style="max-width: 220px;" onchange="this.form.requestSubmit()">
+            @foreach (var m in Model.MesesDisponibles)
+            {
+                <option value="@m.ToString("yyyy-MM")" selected="@(m == Model.MesVista)">@IndexModel.NombreMes(m)@(m == ServicioIndicadores.MesActual ? " (en curso)" : "")</option>
+            }
+        </select>
+    </form>
+    <div class="gas-badges">
+        @if (a.EnVivo) { <span class="gas-badge gas-badge--success">@Iconos.Svg("activity") En vivo · mes en curso hasta hoy</span> }
+        else if (a.CapturadoUtc is not null) { <span class="gas-badge gas-badge--info">@Iconos.Svg("save") Cierre guardado @Fechas.Formato(a.CapturadoUtc)</span> }
+        @if (a.Parcial) { <span class="gas-badge gas-badge--warning" title="Los indicadores puntuales solo se conocen en el momento del cierre.">@Iconos.Svg("alert") Sin indicadores puntuales</span> }
+        @if (!a.EnVivo && a.CapturadoUtc is null) { <span class="gas-badge gas-badge--plain">Calculado ahora (sin cierre guardado)</span> }
+    </div>
+</div>
+
+@foreach (var (area, titulo, icono, detalle) in areas)
+{
+    <section class="gas-card mb-4">
+        <div class="gas-card__header"><div><h2>@Iconos.Svg(icono) @titulo</h2><p>@IndexModel.NombreMes(Model.MesVista) · @detalle</p></div></div>
+        <div class="gas-card__body">
+            <div class="gas-kpis">
+                @foreach (var i in ServicioIndicadores.Todos.Where(x => x.Area == area))
+                {
+                    var valor = a.Valores.GetValueOrDefault(i.Clave);
+                    var (texto, clase) = Delta(i, valor, Model.Anterior.Valores.GetValueOrDefault(i.Clave));
+                    var serie = Model.Series.GetValueOrDefault(i.Clave) ?? [];
+                    var maximo = serie.Where(s => s.Valor is not null).Select(s => Math.Abs(s.Valor!.Value)).DefaultIfEmpty(0).Max();
+                    <div class="gas-kpi" title="@i.Descripcion">
+                        <div class="gas-kpi__nombre">@i.Nombre @if (i.Puntual) { <span class="gas-badge gas-badge--plain" style="font-size: 10px;" title="Se conoce solo al momento; se guarda en el cierre.">foto</span> }</div>
+                        <div class="gas-kpi__valor">@Formato(i, valor)</div>
+                        <div class="gas-kpi__delta @clase">@texto</div>
+                        @if (serie.Count(s => s.Valor is not null) >= 2)
+                        {
+                            <div class="gas-barras" role="img" aria-label="Tendencia de @i.Nombre">
+                                @foreach (var (mes, v) in serie)
+                                {
+                                    if (v is null) { <span class="is-vacio" style="height: 6%" title="@IndexModel.NombreMes(mes): sin dato"></span> continue; }
+                                    var alto = maximo == 0 ? 4 : Math.Max(4, Math.Round(Math.Abs(v.Value) / maximo * 100, 1));
+                                    <span style="height: @alto.ToString(inv)%;@(v < 0 ? " background: #e0796b;" : "")" title="@IndexModel.NombreMes(mes): @Formato(i, v)"></span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+}

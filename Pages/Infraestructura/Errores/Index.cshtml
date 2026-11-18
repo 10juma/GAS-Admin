@@ -1,0 +1,103 @@
+@page
+@model GAS.Admin.Pages.Infraestructura.Errores.IndexModel
+@{
+    ViewData["Title"] = "Errores";
+    ViewData["Seccion"] = "Infraestructura";
+    var vista = Model.Vista == "nuevos" ? "nuevos" : "todos";
+    string Tono(string? nivel) => nivel switch { "fatal" => "gas-badge--danger", "error" => "gas-badge--danger", "warning" => "gas-badge--warning", _ => "gas-badge--plain" };
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Errores</h1>
+        <p>Errores sin resolver que reporta Sentry, por producto. Se muestran los 25 más recientes de cada proyecto; para resolverlos, entra a Sentry.</p>
+    </div>
+    <a asp-page="/Infraestructura/Integraciones/Index" asp-route-vista="sentry" class="btn btn-gas-outline">@Iconos.Svg("plug") Proyectos de Sentry</a>
+</div>
+
+@if (!Model.Configurada)
+{
+    <div class="gas-card">
+        <div class="gas-empty">@Iconos.Svg("bug") Sentry no está configurado. <span class="small">Configúralo en Infraestructura › Integraciones.</span>
+            <a asp-page="/Infraestructura/Integraciones/Index" class="btn btn-sm btn-gas mt-2">@Iconos.Svg("arrow-right") Ir a Integraciones</a></div>
+    </div>
+    return;
+}
+
+@if (Model.Estado?.UltimoError is not null)
+{
+    <div class="gas-callout">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div class="gas-callout__text"><strong>La última sincronización con Sentry falló</strong>@Model.Estado.UltimoError</div>
+    </div>
+}
+
+<div class="gas-grid gas-grid--3 mb-4">
+    <div class="gas-card gas-stat @(Model.Nuevos > 0 ? "gas-stat--danger" : "gas-stat--muted")">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div><div class="gas-stat__label">Nuevos en 24 h</div><div class="gas-stat__value">@Model.Nuevos</div><div class="gas-stat__hint">errores vistos por primera vez</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--warning">
+        <span class="gas-stat__icon">@Iconos.Svg("bug")</span>
+        <div><div class="gas-stat__label">Sin resolver</div><div class="gas-stat__value">@Model.SinResolver</div><div class="gas-stat__hint">en todos los proyectos</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("clock")</span>
+        <div><div class="gas-stat__label">Última sincronización</div><div class="gas-stat__value" style="font-size: 20px;">@(Model.Estado?.UltimaSincronizacionUtc is null ? "Nunca" : Fechas.Relativo(Model.Estado.UltimaSincronizacionUtc))</div><div class="gas-stat__hint">cada 15 minutos</div></div>
+    </div>
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Producto">
+            <a asp-page="Index" asp-route-vista="@Model.Vista" class="gas-chip gas-chip--dark @(Model.Producto is null && Model.Proyecto is null ? "is-active" : "")">Todos</a>
+            @foreach (var p in Model.Productos.Where(p => p.Id is not null))
+            {
+                <a asp-page="Index" asp-route-producto="@p.Id" asp-route-vista="@Model.Vista" class="gas-chip @(p.Nuevos > 0 ? "gas-chip--danger" : "gas-chip--violet") @(Model.Producto == p.Id ? "is-active" : "")">@p.Nombre <span class="gas-chip__count">@p.SinResolver</span></a>
+            }
+        </nav>
+        <nav class="gas-chips" aria-label="Vista">
+            <a asp-page="Index" asp-route-producto="@Model.Producto" asp-route-proyecto="@Model.Proyecto" class="gas-chip @(vista == "todos" ? "is-active" : "")">Sin resolver</a>
+            <a asp-page="Index" asp-route-producto="@Model.Producto" asp-route-proyecto="@Model.Proyecto" asp-route-vista="nuevos" class="gas-chip gas-chip--danger @(vista == "nuevos" ? "is-active" : "")">Nuevos 24 h</a>
+        </nav>
+    </div>
+    @if (Model.ProyectoNombre is not null)
+    {
+        <div class="px-3 pb-2"><span class="gas-badge gas-badge--violet">@Iconos.Svg("bug") @Model.ProyectoNombre</span> <a asp-page="Index" class="small ms-2">Quitar filtro</a></div>
+    }
+    @if (Model.Errores.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("check") Sin errores en esta vista.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Error</th><th>Producto</th><th class="text-end">Eventos</th><th class="text-end">Usuarios</th><th>Última vez</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var e in Model.Errores)
+                    {
+                        var nuevo = e.PrimeraVezUtc >= Model.Hace24h;
+                        <tr>
+                            <td style="max-width: 520px;">
+                                <div class="gas-person__text">
+                                    <span class="gas-person__name" style="white-space: normal;">@e.Titulo</span>
+                                    <span class="gas-badges mt-1">
+                                        <span class="gas-badge @Tono(e.Nivel)">@(e.Nivel ?? "error")</span>
+                                        @if (nuevo) { <span class="gas-badge gas-badge--danger">Nuevo</span> }
+                                        @if (e.Culpable is not null) { <span class="small text-muted" style="overflow-wrap: anywhere;">@e.Culpable</span> }
+                                    </span>
+                                </div>
+                            </td>
+                            <td>@(e.Proyecto.Producto?.Nombre ?? "—")<div class="small text-muted">@e.Proyecto.Nombre</div></td>
+                            <td class="text-end gas-num">@e.Eventos.ToString("#,0")</td>
+                            <td class="text-end gas-num">@e.Usuarios.ToString("#,0")</td>
+                            <td class="text-nowrap">@Fechas.Relativo(e.UltimaVezUtc)<div class="small text-muted">desde @(e.PrimeraVezUtc is null ? "—" : Fechas.ALocal(e.PrimeraVezUtc.Value).ToString("dd/MM/yyyy"))</div></td>
+                            <td class="text-end">@if (e.Url is not null) { <a href="@e.Url" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-gas-outline">@Iconos.Svg("external") Sentry</a> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

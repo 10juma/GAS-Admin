@@ -1,0 +1,181 @@
+@page
+@model GAS.Admin.Pages.Infraestructura.Integraciones.IndexModel
+@using GAS.Admin.Services.Integraciones
+@{
+    ViewData["Title"] = "Integraciones";
+    ViewData["Seccion"] = "Infraestructura";
+    var vista = Model.Vista is "sentry" or "github" ? Model.Vista : "monitores";
+    string TonoMonitor(EstadoMonitor e) => e switch
+    {
+        EstadoMonitor.Arriba => "gas-badge--success",
+        EstadoMonitor.Caido => "gas-badge--danger",
+        EstadoMonitor.Dudoso => "gas-badge--warning",
+        _ => "gas-badge--plain"
+    };
+    string TextoMonitor(EstadoMonitor e) => e switch
+    {
+        EstadoMonitor.Arriba => "Arriba",
+        EstadoMonitor.Caido => "Caído",
+        EstadoMonitor.Dudoso => "Parece caído",
+        EstadoMonitor.Pausado => "Pausado",
+        _ => "Sin revisar"
+    };
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Integraciones</h1>
+        <p>Conexiones de solo lectura con UptimeRobot, GitHub y Sentry. Se consultan solas cada 15 minutos; las llaves viven en la configuración, nunca en la base de datos.</p>
+    </div>
+    @if (Model.PuedeGestionar && Model.Tarjetas.Any(t => t.Configurada))
+    {
+        <form method="post" asp-page-handler="Sincronizar" asp-route-vista="@Model.Vista">
+            <button type="submit" class="btn btn-gas">@Iconos.Svg("refresh") Sincronizar todas</button>
+        </form>
+    }
+</div>
+
+<div class="gas-grid gas-grid--3 mb-4">
+    @foreach (var t in Model.Tarjetas)
+    {
+        var e = t.Estado;
+        <section class="gas-card">
+            <div class="gas-card__header">
+                <div><h2>@Iconos.Svg(t.Icono) @t.Nombre</h2><p>@t.Descripcion</p></div>
+                @if (User.IsInRole(RolesBase.Admin))
+                {
+                    <button type="button" class="btn btn-sm btn-gas-outline text-nowrap"
+                            data-modal-url="@Url.Page("/Organizacion/Configuracion/Index", "Llaves", new { grupo = t.Grupo, volver = Url.Page("Index") })">
+                        @Iconos.Svg("key") @(t.Configurada ? "Llave" : "Capturar llave")
+                    </button>
+                }
+            </div>
+            <div class="gas-card__body">
+                @if (!t.Configurada)
+                {
+                    <span class="gas-badge gas-badge--plain mb-2">@Iconos.Svg("x") Sin configurar</span>
+                    <div class="small text-muted">@t.Ayuda @(User.IsInRole(RolesBase.Admin) ? "Captúrala con el botón «Capturar llave»; empieza a usarse de inmediato." : "Solo un Admin puede capturarla.")</div>
+                }
+                else
+                {
+                    <div class="gas-badges mb-2">
+                        <span class="gas-badge gas-badge--success">@Iconos.Svg("check") Configurada</span>
+                        @if (e?.UltimoError is not null) { <span class="gas-badge gas-badge--danger">@Iconos.Svg("alert") Con error</span> }
+                    </div>
+                    @if (e?.UltimoError is not null) { <div class="small text-danger mb-2">@e.UltimoError</div> }
+                    <div class="small">
+                        @if (e?.UltimaSincronizacionUtc is null) { <span class="text-muted">Aún no se sincroniza.</span> }
+                        else { <span>Sincronizado @Fechas.Relativo(e.UltimaSincronizacionUtc).ToLowerInvariant()</span><div class="text-muted">@e.UltimoResultado</div> }
+                    </div>
+                    @if (Model.PuedeGestionar)
+                    {
+                        <form method="post" asp-page-handler="Sincronizar" asp-route-integracion="@t.Nombre" asp-route-vista="@Model.Vista" class="mt-3">
+                            <button type="submit" class="btn btn-sm btn-gas-outline">@Iconos.Svg("refresh") Sincronizar</button>
+                        </form>
+                    }
+                }
+            </div>
+        </section>
+    }
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Sección">
+            <a asp-page="Index" class="gas-chip gas-chip--success @(vista == "monitores" ? "is-active" : "")">@Iconos.Svg("activity") Monitores <span class="gas-chip__count">@Model.Monitores.Count</span></a>
+            <a asp-page="Index" asp-route-vista="github" class="gas-chip gas-chip--dark @(vista == "github" ? "is-active" : "")">@Iconos.Svg("git") GitHub <span class="gas-chip__count">@Model.Repos.Count</span></a>
+            <a asp-page="Index" asp-route-vista="sentry" class="gas-chip gas-chip--violet @(vista == "sentry" ? "is-active" : "")">@Iconos.Svg("bug") Proyectos de Sentry <span class="gas-chip__count">@Model.Proyectos.Count</span></a>
+        </nav>
+    </div>
+
+    @if (vista == "monitores")
+    {
+        if (Model.Monitores.Count == 0)
+        {
+            <div class="gas-empty">@Iconos.Svg("activity") Sin monitores. <span class="small">Aparecen al sincronizar UptimeRobot; se ligan solos al ambiente con la misma URL.</span></div>
+        }
+        else
+        {
+            <div class="gas-table-wrap">
+                <table class="gas-table">
+                    <thead><tr><th>Monitor</th><th>Estado</th><th class="text-end">Disponibilidad 30 d</th><th>Ambiente</th><th>Incidente</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                        @foreach (var m in Model.Monitores)
+                        {
+                            <tr>
+                                <td><strong>@m.Nombre</strong><div class="small text-muted">@m.Url</div></td>
+                                <td><span class="gas-badge @TonoMonitor(m.Estado)">@TextoMonitor(m.Estado)</span>@if (m.UltimoCambioUtc is not null) { <div class="small text-muted">desde @Fechas.Relativo(m.UltimoCambioUtc).ToLowerInvariant()</div> }</td>
+                                <td class="text-end gas-num">@(m.Uptime30d is null ? "—" : $"{m.Uptime30d:0.###}%")</td>
+                                <td>@if (m.Ambiente is null) { <span class="gas-badge gas-badge--warning">Sin ligar</span> } else { <span>@m.Ambiente.Producto.Nombre · @m.Ambiente.Nombre</span> }</td>
+                                <td>@if (m.Incidente is not null) { <a asp-page="/Infraestructura/Incidentes/Index" class="gas-badge gas-badge--danger gas-badge--btn text-decoration-none">@Iconos.Svg("alert") @m.Incidente.Folio</a> } else { <span class="text-muted">—</span> }</td>
+                                <td class="text-end">@if (Model.PuedeGestionar) { <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Liga", new { tipo = "monitor", id = m.Id })">@Iconos.Svg("pencil") Ligar</button> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    else if (vista == "github")
+    {
+        @if (Model.ReposSinGitHub > 0)
+        {
+            <div class="px-3 pb-2 small text-muted">@Iconos.Svg("note") @Model.ReposSinGitHub repositorio(s) sin URL de GitHub no se consultan. Agrega su URL en Repositorios.</div>
+        }
+        if (Model.Repos.Count == 0)
+        {
+            <div class="gas-empty">@Iconos.Svg("git") Sin datos de GitHub. <span class="small">Registra tus repositorios con su URL de GitHub y sincroniza.</span></div>
+        }
+        else
+        {
+            <div class="gas-table-wrap">
+                <table class="gas-table">
+                    <thead><tr><th>Repositorio</th><th>Producto</th><th>Último commit</th><th class="text-end">PRs</th><th class="text-end">Issues</th><th>Último release</th></tr></thead>
+                    <tbody>
+                        @foreach (var (r, producto) in Model.Repos)
+                        {
+                            <tr>
+                                <td><strong>@r.NombreCompleto</strong>@if (r.Error is not null) { <div class="small text-danger">@r.Error</div> }</td>
+                                <td>@producto</td>
+                                <td>@if (r.UltimoCommitSha is null) { <span class="text-muted">—</span> } else { <code>@r.ShaCorto</code> <span>@r.UltimoCommitMensaje</span><div class="small text-muted">@r.UltimoCommitAutor · @Fechas.Relativo(r.UltimoCommitUtc).ToLowerInvariant()</div> }</td>
+                                <td class="text-end">@r.PrsAbiertos</td>
+                                <td class="text-end">@r.IssuesAbiertos</td>
+                                <td>@(r.UltimoRelease ?? "—")@if (r.UltimoReleaseUtc is not null) { <div class="small text-muted">@Fechas.Relativo(r.UltimoReleaseUtc).ToLowerInvariant()</div> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    else
+    {
+        if (Model.Proyectos.Count == 0)
+        {
+            <div class="gas-empty">@Iconos.Svg("bug") Sin proyectos de Sentry. <span class="small">Aparecen al sincronizar; se ligan solos al producto cuyo nombre coincide.</span></div>
+        }
+        else
+        {
+            <div class="gas-table-wrap">
+                <table class="gas-table">
+                    <thead><tr><th>Proyecto</th><th>Producto</th><th class="text-end">Sin resolver</th><th class="text-end">Nuevos 24 h</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                        @foreach (var p in Model.Proyectos)
+                        {
+                            <tr>
+                                <td><strong>@p.Nombre</strong><div class="small text-muted">@p.Slug @(p.Plataforma is null ? "" : $"· {p.Plataforma}")</div></td>
+                                <td>@if (p.Producto is null) { <span class="gas-badge gas-badge--warning">Sin ligar</span> } else { <span>@p.Producto.Nombre</span> }</td>
+                                <td class="text-end">@p.SinResolver</td>
+                                <td class="text-end @(p.Nuevos24h > 0 ? "text-danger fw-semibold" : "")">@p.Nuevos24h</td>
+                                <td class="text-end text-nowrap">
+                                    <a asp-page="/Infraestructura/Errores/Index" asp-route-proyecto="@p.Id" class="btn btn-sm btn-gas-outline">@Iconos.Svg("eye") Errores</a>
+                                    @if (Model.PuedeGestionar) { <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Liga", new { tipo = "sentry", id = p.Id })">@Iconos.Svg("pencil") Ligar</button> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>

@@ -1,0 +1,19 @@
+@model IEnumerable<string>
+<div class="gas-badges">
+    @if (!Model.Any())
+    {
+        <span class="gas-badge">Sin rol</span>
+    }
+    @foreach (var rol in Model)
+    {
+        var clase = rol switch
+        {
+            RolesBase.Admin => "gas-badge--dark",
+            RolesBase.Desarrollador => "gas-badge--info",
+            RolesBase.Finanzas => "gas-badge--warning",
+            RolesBase.Soporte => "gas-badge--violet",
+            _ => "gas-badge--success"
+        };
+        <span class="gas-badge @clase">@rol</span>
+    }
+</div>

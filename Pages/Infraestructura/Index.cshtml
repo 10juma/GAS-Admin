@@ -1,0 +1,173 @@
+@page
+@model GAS.Admin.Pages.Infraestructura.IndexModel
+@using GAS.Admin.Services.Infraestructura
+@{
+    ViewData["Title"] = "Panel de infraestructura";
+    ViewData["Seccion"] = "Infraestructura";
+    string Punto(EstadoAmbiente e) => e switch
+    {
+        EstadoAmbiente.Operativo => "gas-timeline__dot--success",
+        EstadoAmbiente.Degradado or EstadoAmbiente.Mantenimiento => "gas-timeline__dot--warning",
+        EstadoAmbiente.Caido => "gas-timeline__dot--danger",
+        _ => ""
+    };
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Panel de infraestructura</h1>
+        <p>Cómo están los productos hoy: ambientes, incidentes abiertos, lo que vence pronto y los últimos despliegues.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <div class="gas-page-header__actions">
+            <a asp-page="/Infraestructura/Ambientes/Index" class="btn btn-gas-outline">@Iconos.Svg("server") Ambientes</a>
+            <button type="button" class="btn btn-gas-danger" data-modal-url="@Url.Page("/Infraestructura/Incidentes/Index", "Nuevo", new { volver = "/Infraestructura" })">@Iconos.Svg("alert") Registrar incidente</button>
+        </div>
+    }
+</div>
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <a asp-page="/Infraestructura/Ambientes/Index" class="gas-card gas-stat @(Model.Operativos == Model.TotalAmbientes ? "gas-stat--success" : "gas-stat--warning") text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("server")</span>
+        <div><div class="gas-stat__label">Ambientes operativos</div><div class="gas-stat__value">@Model.Operativos / @Model.TotalAmbientes</div><div class="gas-stat__hint">sin contar inactivos@(Model.ErroresNuevos > 0 ? $" · {Model.ErroresNuevos} error(es) nuevo(s) en Sentry" : "")</div></div>
+    </a>
+    <a asp-page="/Infraestructura/Incidentes/Index" class="gas-card gas-stat @(Model.IncidentesAbiertos.Count > 0 ? "gas-stat--danger" : "gas-stat--muted") text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div><div class="gas-stat__label">Incidentes abiertos</div><div class="gas-stat__value">@Model.IncidentesAbiertos.Count</div><div class="gas-stat__hint">@(Model.IncidentesAbiertos.Count == 0 ? "todo en orden" : "requieren seguimiento")</div></div>
+    </a>
+    <div class="gas-card gas-stat @(Model.Vencen30 > 0 ? "gas-stat--warning" : "gas-stat--muted")">
+        <span class="gas-stat__icon">@Iconos.Svg("calendar")</span>
+        <div><div class="gas-stat__label">Vencen en 30 días</div><div class="gas-stat__value">@Model.Vencen30</div><div class="gas-stat__hint">dominios, SSL, credenciales y servicios</div></div>
+    </div>
+    <a asp-page="/Infraestructura/Credenciales/Index" asp-route-vista="atender" class="gas-card gas-stat @(Model.CredencialesAtender > 0 ? "gas-stat--violet" : "gas-stat--muted") text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("key")</span>
+        <div><div class="gas-stat__label">Credenciales por rotar</div><div class="gas-stat__value">@Model.CredencialesAtender</div><div class="gas-stat__hint">o por vencer en 30 días</div></div>
+    </a>
+</div>
+
+<div class="gas-org-grid mb-4">
+    @foreach (var p in Model.Productos)
+    {
+        <section class="gas-card">
+            <div class="gas-card__header">
+                <div>
+                    <h2>@Iconos.Svg("box") @p.Nombre</h2>
+                    <p>@p.Repositorios repo(s) · @p.Dominios dominio(s)@(p.Incidentes > 0 ? $" · {p.Incidentes} incidente(s)" : "")</p>
+                </div>
+                @if (Model.ErroresPorProducto.TryGetValue(p.Id, out var err) && err.SinResolver > 0)
+                {
+                    <a asp-page="/Infraestructura/Errores/Index" asp-route-producto="@p.Id" class="gas-badge @(err.Nuevos > 0 ? "gas-badge--danger" : "gas-badge--warning") gas-badge--btn text-decoration-none" title="Errores de Sentry sin resolver@(err.Nuevos > 0 ? $"; {err.Nuevos} nuevos en 24 h" : "")">@Iconos.Svg("bug") @err.SinResolver</a>
+                }
+                @if (p.Incidentes > 0) { <span class="gas-badge gas-badge--danger">@Iconos.Svg("alert") @p.Incidentes</span> }
+            </div>
+            @if (p.Ambientes.Count == 0)
+            {
+                <div class="gas-empty py-3">
+                    @Iconos.Svg("server") Sin ambientes registrados.
+                    @if (Model.PuedeGestionar) { <a href="#" class="small" data-modal-url="@Url.Page("/Infraestructura/Ambientes/Index", "Nuevo", new { productoId = p.Id, volver = "/Infraestructura" })">Registrar producción</a> }
+                </div>
+            }
+            else
+            {
+                <ul class="gas-timeline">
+                    @foreach (var a in p.Ambientes)
+                    {
+                        <li>
+                            <span class="gas-timeline__dot @Punto(a.Estado)"></span>
+                            <div class="gas-timeline__body">
+                                <strong>@a.Nombre <span class="gas-badge @Etiquetas.Badge(a.Estado) ms-1">@Etiquetas.Texto(a.Estado)</span></strong>
+                                <span>
+                                    @Etiquetas.Texto(a.Tipo)@(a.Version is null ? "" : $" · v{a.Version.TrimStart('v')}")@(a.UltimoDespliegueUtc is null ? "" : $" · {Fechas.Relativo(a.UltimoDespliegueUtc).ToLowerInvariant()}")
+                                    @if (a.Url is not null) { <a href="@a.Url" target="_blank" rel="noopener noreferrer" class="ms-1">@Iconos.Svg("external")</a> }
+                                </span>
+                                @if (Model.MonitorPorAmbiente.TryGetValue(a.Id, out var mon))
+                                {
+                                    <span>@Iconos.Svg("activity") @(mon.Estado switch { EstadoMonitor.Arriba => "Monitor arriba", EstadoMonitor.Caido => "Monitor caído", EstadoMonitor.Dudoso => "Monitor con fallas", EstadoMonitor.Pausado => "Monitor pausado", _ => "Monitor sin revisar" })@(mon.Uptime30d is null ? "" : $" · {mon.Uptime30d:0.##}% en 30 d")</span>
+                                }
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    }
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-5">
+        <section class="gas-card h-100">
+            <div class="gas-card__header"><div><h2>@Iconos.Svg("calendar") Vencimientos</h2><p>Próximos 60 días e incluye lo ya vencido.</p></div></div>
+            @if (Model.Vencimientos.Count == 0)
+            {
+                <div class="gas-empty">@Iconos.Svg("check") Nada vence en los próximos 60 días.</div>
+            }
+            else
+            {
+                <ul class="gas-timeline">
+                    @foreach (var v in Model.Vencimientos)
+                    {
+                        var d = v.Dias(Model.Hoy);
+                        <li>
+                            <span class="gas-timeline__dot @(d < 0 ? "gas-timeline__dot--danger" : d <= 15 ? "gas-timeline__dot--warning" : "")"></span>
+                            <div class="gas-timeline__body">
+                                <strong><a href="@Url.Page(v.Pagina)" class="text-decoration-none">@Iconos.Svg(ServicioInfraestructura.Icono(v.Tipo)) @v.Nombre</a></strong>
+                                <span>@ServicioInfraestructura.Texto(v.Tipo) · @v.Fecha.ToString("dd/MM/yyyy") · @(d < 0 ? $"vencido hace {-d} días" : d == 0 ? "hoy" : $"en {d} días")@(v.Producto is null ? "" : $" · {v.Producto}")</span>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    </div>
+    <div class="col-xl-7">
+        <section class="gas-card mb-4">
+            <div class="gas-card__header"><div><h2>@Iconos.Svg("alert") Incidentes abiertos</h2></div></div>
+            @if (Model.IncidentesAbiertos.Count == 0)
+            {
+                <div class="gas-empty py-3">@Iconos.Svg("check") Sin incidentes abiertos.</div>
+            }
+            else
+            {
+                <div class="gas-table-wrap">
+                    <table class="gas-table">
+                        <tbody>
+                            @foreach (var i in Model.IncidentesAbiertos)
+                            {
+                                <tr>
+                                    <td><strong>@i.Folio</strong> · @i.Titulo<div class="small text-muted">@(i.Producto?.Nombre ?? "General")@(i.Ambiente is null ? "" : $" · {i.Ambiente.Nombre}") · desde @Fechas.Relativo(i.InicioUtc).ToLowerInvariant()</div></td>
+                                    <td><span class="gas-badge @Etiquetas.Badge(i.Severidad)">@Etiquetas.Texto(i.Severidad)</span></td>
+                                    <td><span class="gas-badge @Etiquetas.Badge(i.Estado)">@Etiquetas.Texto(i.Estado)</span></td>
+                                    <td class="text-end"><button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("/Infraestructura/Incidentes/Index", "Editar", new { id = i.Id, volver = "/Infraestructura" })">@Iconos.Svg("pencil") Seguimiento</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+        <section class="gas-card">
+            <div class="gas-card__header"><div><h2>@Iconos.Svg("rocket") Últimos despliegues</h2></div></div>
+            @if (Model.Despliegues.Count == 0)
+            {
+                <div class="gas-empty py-3">@Iconos.Svg("rocket") Aún no hay despliegues registrados.</div>
+            }
+            else
+            {
+                <ul class="gas-timeline">
+                    @foreach (var r in Model.Despliegues)
+                    {
+                        var d = r.Despliegue;
+                        <li>
+                            <span class="gas-timeline__dot @(d.Resultado switch { ResultadoDespliegue.Exitoso => "gas-timeline__dot--success", ResultadoDespliegue.ConProblemas => "gas-timeline__dot--warning", _ => "gas-timeline__dot--danger" })"></span>
+                            <div class="gas-timeline__body">
+                                <strong>@r.Producto · @r.Ambiente · @d.Version</strong>
+                                <span>@Fechas.Relativo(d.FechaUtc)@(d.Realizo is null ? "" : $" · {d.Realizo}") · @Etiquetas.Texto(d.Resultado).ToLowerInvariant()</span>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    </div>
+</div>

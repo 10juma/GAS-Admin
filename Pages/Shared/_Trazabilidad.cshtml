@@ -1,0 +1,10 @@
+@* Chips con quién y cuándo creó o modificó un registro. *@
+@model (DateTime? CreadoUtc, string? CreadoPor, DateTime? ModificadoUtc, string? ModificadoPor)
+@if (Model.CreadoUtc is not null)
+{
+    <span class="gas-badge gas-badge--plain" title="Creado por @(Model.CreadoPor ?? "Sistema")">@Iconos.Svg("calendar") Alta @Fechas.Formato(Model.CreadoUtc)</span>
+}
+@if (Model.ModificadoUtc is not null)
+{
+    <span class="gas-badge gas-badge--plain" title="@Fechas.Formato(Model.ModificadoUtc)">@Iconos.Svg("pencil") Editado @Fechas.Relativo(Model.ModificadoUtc).ToLowerInvariant() · @(Model.ModificadoPor ?? "Sistema")</span>
+}

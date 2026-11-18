@@ -1,0 +1,85 @@
+@page
+@model GAS.Admin.Pages.Infraestructura.Incidentes.IndexModel
+@using GAS.Admin.Pages.Infraestructura.Incidentes
+@{
+    ViewData["Title"] = "Incidentes";
+    ViewData["Seccion"] = "Infraestructura";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var vista = Model.Vista ?? "abiertos";
+    var volver = Model.VolverActual;
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Incidentes</h1>
+        <p>Caídas y fallas de los productos: qué pasó, a quién afectó, cuánto duró y qué se hizo. Un incidente abierto marca su ambiente como degradado o caído.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas-danger" data-modal-url="@Url.Page("Index", "Nuevo", new { volver })">@Iconos.Svg("alert") Registrar incidente</button>
+    }
+</div>
+
+<div class="gas-grid gas-grid--3 mb-4">
+    <div class="gas-card gas-stat @(Model.Abiertos > 0 ? "gas-stat--danger" : "gas-stat--muted")">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div><div class="gas-stat__label">Abiertos</div><div class="gas-stat__value">@Model.Abiertos</div><div class="gas-stat__hint">@Model.Criticos de severidad alta o crítica</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--success">
+        <span class="gas-stat__icon">@Iconos.Svg("check")</span>
+        <div><div class="gas-stat__label">Resueltos</div><div class="gas-stat__value">@Model.Resueltos</div><div class="gas-stat__hint">historial completo</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("clock")</span>
+        <div><div class="gas-stat__label">Tiempo medio de resolución</div><div class="gas-stat__value">@(Model.Mttr is null ? "—" : IndexModel.Duracion(Model.Mttr.Value))</div><div class="gas-stat__hint">últimos 90 días</div></div>
+    </div>
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Vista">
+            <a asp-page="Index" class="gas-chip gas-chip--danger @(vista == "abiertos" ? "is-active" : "")">Abiertos <span class="gas-chip__count">@Model.Abiertos</span></a>
+            <a asp-page="Index" asp-route-vista="resueltos" class="gas-chip gas-chip--success @(vista == "resueltos" ? "is-active" : "")">Resueltos <span class="gas-chip__count">@Model.Resueltos</span></a>
+            <a asp-page="Index" asp-route-vista="todos" class="gas-chip gas-chip--dark @(vista == "todos" ? "is-active" : "")">Todos <span class="gas-chip__count">@(Model.Abiertos + Model.Resueltos)</span></a>
+        </nav>
+    </div>
+    @if (Model.Incidentes.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("check") @(vista == "abiertos" ? "Sin incidentes abiertos. Todo en orden." : "No hay incidentes en esta vista.")</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Incidente</th><th>Producto · ambiente</th><th>Severidad</th><th>Inicio</th><th>Duración</th><th>Estado</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var f in Model.Incidentes)
+                    {
+                        var i = f.Incidente;
+                        <tr>
+                            <td>
+                                <div class="gas-person__text">
+                                    <span class="gas-person__name">@i.Folio · @i.Titulo</span>
+                                    @if (f.Responsable is not null) { <span class="gas-person__email">@f.Responsable</span> }
+                                </div>
+                            </td>
+                            <td>@(f.Producto ?? "—")<div class="small text-muted">@f.Ambiente</div></td>
+                            <td><span class="gas-badge @Etiquetas.Badge(i.Severidad)">@Etiquetas.Texto(i.Severidad)</span></td>
+                            <td class="text-nowrap">@Fechas.Formato(i.InicioUtc)</td>
+                            <td class="text-nowrap">@IndexModel.Duracion(i.Duracion)@if (i.Abierto) { <span class="small text-muted"> y contando</span> }</td>
+                            <td><span class="gas-badge @Etiquetas.Badge(i.Estado)">@Etiquetas.Texto(i.Estado)</span></td>
+                            <td class="text-end"><button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = i.Id, volver })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Seguimiento" : "Ver")</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_IncidenteModal" model="Model.Modal" />
+    }
+}

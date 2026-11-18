@@ -1,0 +1,180 @@
+@page
+@model GAS.Admin.Pages.Finanzas.Configuracion.IndexModel
+@{
+    ViewData["Title"] = "Configuración de finanzas";
+    ViewData["Seccion"] = "Finanzas";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var vista = Model.Vista is "categorias" or "tipos" or "stripe" ? Model.Vista : "cuentas";
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Configuración de finanzas</h1>
+        <p>Cuentas donde entra y sale el dinero, categorías para clasificar movimientos, tipos de cambio del dólar y la conexión con Stripe de cada producto.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <div class="gas-page-header__actions">
+            @if (vista == "cuentas") { <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "NuevaCuenta")">@Iconos.Svg("plus") Nueva cuenta</button> }
+            @if (vista == "categorias")
+            {
+                <button type="button" class="btn btn-gas-outline" data-modal-url="@Url.Page("Index", "NuevaCategoria", new { tipo = TipoMovimiento.Egreso })">@Iconos.Svg("plus") Categoría de egreso</button>
+                <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "NuevaCategoria", new { tipo = TipoMovimiento.Ingreso })">@Iconos.Svg("plus") Categoría de ingreso</button>
+            }
+            @if (vista == "tipos") { <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "NuevoTipo")">@Iconos.Svg("plus") Tipo de cambio</button> }
+            @if (vista == "stripe") { <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "NuevaStripe")">@Iconos.Svg("plus") Conectar Stripe</button> }
+        </div>
+    }
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Sección">
+            <a asp-page="Index" class="gas-chip gas-chip--info @(vista == "cuentas" ? "is-active" : "")">@Iconos.Svg("wallet") Cuentas <span class="gas-chip__count">@Model.Cuentas.Count</span></a>
+            <a asp-page="Index" asp-route-vista="categorias" class="gas-chip gas-chip--violet @(vista == "categorias" ? "is-active" : "")">@Iconos.Svg("tag") Categorías <span class="gas-chip__count">@Model.Categorias.Count</span></a>
+            <a asp-page="Index" asp-route-vista="tipos" class="gas-chip gas-chip--success @(vista == "tipos" ? "is-active" : "")">@Iconos.Svg("swap") Tipos de cambio <span class="gas-chip__count">@Model.Tipos.Count</span></a>
+            <a asp-page="Index" asp-route-vista="stripe" class="gas-chip gas-chip--dark @(vista == "stripe" ? "is-active" : "")">@Iconos.Svg("card") Stripe <span class="gas-chip__count">@Model.CuentasStripe.Count</span></a>
+        </nav>
+    </div>
+
+    @if (vista == "cuentas")
+    {
+        if (Model.Cuentas.Count == 0)
+        {
+            <div class="gas-empty">@Iconos.Svg("wallet") Aún no hay cuentas. <span class="small">Registra tus cuentas bancarias, tarjetas o Stripe con un alias y sus últimos 4 dígitos.</span></div>
+        }
+        else
+        {
+            <div class="gas-table-wrap">
+                <table class="gas-table">
+                    <thead><tr><th>Cuenta</th><th>Tipo</th><th>Institución</th><th>Moneda</th><th>Movimientos</th><th>Estado</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                        @foreach (var (c, usos) in Model.Cuentas)
+                        {
+                            <tr style="@(c.Activa ? "" : "opacity: .6;")">
+                                <td><strong>@c.Alias</strong>@if (c.UltimosDigitos is not null) { <span class="text-muted"> ····@c.UltimosDigitos</span> }</td>
+                                <td>@Etiquetas.Texto(c.Tipo)</td>
+                                <td>@(c.Institucion ?? "—")</td>
+                                <td><span class="gas-badge gas-badge--plain">@c.Moneda</span></td>
+                                <td>@usos</td>
+                                <td><span class="gas-badge @(c.Activa ? "gas-badge--success" : "gas-badge--plain")">@(c.Activa ? "Activa" : "Inactiva")</span></td>
+                                <td class="text-end"><button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "EditarCuenta", new { id = c.Id })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Editar" : "Ver")</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    else if (vista == "categorias")
+    {
+        <div class="row g-0">
+            @foreach (var tipo in Etiquetas.Valores<TipoMovimiento>())
+            {
+                <div class="col-lg-6">
+                    <div class="px-3 pt-2 pb-1"><span class="gas-badge @Etiquetas.Badge(tipo)">@Iconos.Svg(tipo == TipoMovimiento.Ingreso ? "arrow-up" : "arrow-down") @(tipo == TipoMovimiento.Ingreso ? "Ingresos" : "Egresos")</span></div>
+                    <div class="gas-table-wrap">
+                        <table class="gas-table">
+                            <thead><tr><th>Categoría</th><th>Movimientos</th><th class="text-end"></th></tr></thead>
+                            <tbody>
+                                @foreach (var (c, usos) in Model.Categorias.Where(x => x.Categoria.Tipo == tipo))
+                                {
+                                    <tr style="@(c.Activa ? "" : "opacity: .6;")">
+                                        <td>@c.Nombre @if (!c.Activa) { <span class="gas-badge gas-badge--plain ms-1">Inactiva</span> }</td>
+                                        <td>@usos</td>
+                                        <td class="text-end"><button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "EditarCategoria", new { id = c.Id })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Editar" : "Ver")</button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (vista == "stripe")
+    {
+        if (Model.CuentasStripe.Count == 0)
+        {
+            <div class="gas-empty">@Iconos.Svg("card") Ningún producto conectado a Stripe. <span class="small">Conecta Revendo y Pitazo con una clave restringida de solo lectura para ver MRR, suscripciones y pagos fallidos.</span></div>
+        }
+        else
+        {
+            <div class="gas-table-wrap">
+                <table class="gas-table">
+                    <thead><tr><th>Producto</th><th>API key</th><th>Cuenta en Stripe</th><th>Última sincronización</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                        @foreach (var (c, e) in Model.CuentasStripe)
+                        {
+                            <tr style="@(c.Activa ? "" : "opacity: .6;")">
+                                <td><strong>@c.Producto.Nombre</strong><div class="small text-muted"><code>Stripe:Claves:@c.Clave</code></div></td>
+                                <td>
+                                    <span class="gas-badge @(e.Configurada ? (e.Restringida ? "gas-badge--success" : "gas-badge--warning") : "gas-badge--danger")">@(e.Configurada ? (e.Restringida ? "Restringida" : "Secreta completa") : "Falta")</span>
+                                    @if (e.Prueba) { <span class="gas-badge gas-badge--info">Prueba</span> }
+                                    @if (!c.Activa) { <span class="gas-badge gas-badge--plain">Pausada</span> }
+                                </td>
+                                <td>@(c.NombreStripe ?? "—")<div class="small text-muted">@c.CuentaId</div></td>
+                                <td>
+                                    @if (c.UltimoError is not null) { <span class="text-danger small">@Iconos.Svg("alert") @c.UltimoError</span> }
+                                    else if (c.UltimaSincronizacionUtc is null) { <span class="text-muted">Nunca</span> }
+                                    else { <span>@Fechas.Relativo(c.UltimaSincronizacionUtc)</span><div class="small text-muted">@c.UltimoResultado</div> }
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    @if (Model.PuedeGestionar && e.Configurada)
+                                    {
+                                        <form method="post" asp-page-handler="SincronizarStripe" asp-route-id="@c.Id" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-gas">@Iconos.Svg("refresh") Sincronizar</button>
+                                        </form>
+                                    }
+                                    <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "EditarStripe", new { id = c.Id })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Editar" : "Ver")</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    else
+    {
+        @if (Model.SinTipoCambio > 0 && Model.PuedeGestionar && Model.Tipos.Count > 0)
+        {
+            <div class="gas-callout mx-3">
+                <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+                <div class="gas-callout__text"><strong>@Model.SinTipoCambio movimiento(s) en dólares sin tipo de cambio</strong>A los cobrados o pagados se les aplica el de su fecha; a los pendientes, el más reciente (@Model.Tipos[0].Valor.ToString("0.0000")).</div>
+                <form method="post" asp-page-handler="AplicarTipo"><button type="submit" class="btn btn-sm btn-gas">@Iconos.Svg("check") Aplicar</button></form>
+            </div>
+        }
+        if (Model.Tipos.Count == 0)
+        {
+            <div class="gas-empty">@Iconos.Svg("swap") Aún no hay tipos de cambio. <span class="small">Registra el del día (DOF o Banxico) para convertir los movimientos en dólares a pesos.</span></div>
+        }
+        else
+        {
+            <div class="gas-table-wrap">
+                <table class="gas-table">
+                    <thead><tr><th>Fecha</th><th>Moneda</th><th class="text-end">MXN por unidad</th><th>Fuente</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                        @foreach (var t in Model.Tipos)
+                        {
+                            <tr>
+                                <td>@t.Fecha.ToString("dd/MM/yyyy")</td>
+                                <td><span class="gas-badge gas-badge--plain">@t.Moneda</span></td>
+                                <td class="text-end fw-semibold" style="font-variant-numeric: tabular-nums;">@t.Valor.ToString("0.0000")</td>
+                                <td>@(t.Fuente ?? "—")</td>
+                                <td class="text-end"><button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "EditarTipo", new { id = t.Id })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Editar" : "Ver")</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_ConfigModal" model="Model.Modal" />
+    }
+}

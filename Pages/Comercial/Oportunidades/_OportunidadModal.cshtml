@@ -1,0 +1,204 @@
+@model GAS.Admin.Pages.Comercial.Oportunidades.OportunidadModalVm
+@using System.Globalization
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-oportunidad-nueva" : $"form-oportunidad-{Model.Id}";
+    var i = Model.Input;
+    var responsable = (Nombre: "Input.ResponsableId", Id: formId + "-resp", Seleccionado: i.ResponsableId, Opciones: Model.Responsables, Deshabilitado: off);
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg("activity")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@(Model.EsNuevo ? "Nueva oportunidad" : i.Titulo)</h2>
+            @if (Model.EsNuevo)
+            {
+                <div class="gas-modal__subtitle">Un trato posible con un cliente o prospecto.</div>
+            }
+            else
+            {
+                <div class="gas-badges mt-2">
+                    <span class="gas-badge @Etiquetas.Badge(i.Etapa)">@Etiquetas.Texto(i.Etapa)</span>
+                    <span class="gas-chip gas-chip--info" style="pointer-events: none; padding-top: 2px; padding-bottom: 2px;">@Iconos.Svg("note") Cotizaciones <span class="gas-chip__count">@Model.Cotizaciones.Count</span></span>
+                    <partial name="_Trazabilidad" model="(Model.CreadoUtc, Model.CreadoPor, Model.ModificadoUtc, Model.ModificadoPor)" />
+                </div>
+            }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Comercial/Oportunidades/Index"
+              asp-page-handler="@(Model.EsNuevo ? "Crear" : "Guardar")" asp-route-id="@Model.Id">
+            <input type="hidden" name="Vista" value="@Model.Vista" />
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Datos de la oportunidad</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-titulo">Título</label>
+                                    <input id="@formId-titulo" name="Input.Titulo" value="@i.Titulo" class="form-control" maxlength="200" disabled="@off"
+                                           placeholder="Ej. App de pedidos para distribuidora" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-cliente">Cliente</label>
+                                    <select id="@formId-cliente" name="Input.ClienteId" class="form-select" disabled="@off">
+                                        <option value="">Elegir…</option>
+                                        @foreach (var c in Model.Clientes)
+                                        {
+                                            <option value="@c.Id" selected="@(c.Id == i.ClienteId)">@c.Nombre@(c.Estado == EstadoCliente.Prospecto ? " (prospecto)" : "")</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-nuevo">…o prospecto nuevo</label>
+                                    <input id="@formId-nuevo" name="Input.NuevoProspecto" value="@i.NuevoProspecto" class="form-control" maxlength="200" disabled="@off"
+                                           placeholder="Se registra en Clientes como prospecto" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-origen">Origen</label>
+                                    <select id="@formId-origen" name="Input.Origen" class="form-select" disabled="@off">
+                                        @foreach (var o in Etiquetas.Valores<OrigenOportunidad>())
+                                        {
+                                            <option value="@o" selected="@(o == i.Origen)">@Etiquetas.Texto(o)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-prod">Producto de interés</label>
+                                    <select id="@formId-prod" name="Input.ProductoId" class="form-select" disabled="@off">
+                                        <option value="">Servicios / ninguno</option>
+                                        @foreach (var p in Model.Productos)
+                                        {
+                                            <option value="@p.Id" selected="@(p.Id == i.ProductoId)">@p.Nombre</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-resp">Responsable</label>
+                                    <partial name="_SelectResponsable" model="responsable" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("dollar") Valor y etapa</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label class="form-label" for="@formId-valor">Valor estimado</label>
+                                    <input id="@formId-valor" name="Input.ValorEstimado" value="@i.ValorEstimado?.ToString(CultureInfo.InvariantCulture)"
+                                           type="number" min="0" step="0.01" class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-moneda">Moneda</label>
+                                    <select id="@formId-moneda" name="Input.Moneda" class="form-select" disabled="@off">
+                                        @foreach (var m in GAS.Admin.Pages.Comercial.Oportunidades.OportunidadInput.Monedas)
+                                        {
+                                            <option value="@m" selected="@(m == i.Moneda)">@m</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-etapa">Etapa</label>
+                                    <select id="@formId-etapa" name="Input.Etapa" class="form-select" disabled="@off" data-etapa>
+                                        @foreach (var e in Etiquetas.Valores<EtapaOportunidad>())
+                                        {
+                                            <option value="@e" selected="@(e == i.Etapa)" data-prob="@Oportunidad.ProbabilidadSugerida(e)">@Etiquetas.Texto(e)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-prob">Probabilidad (%)</label>
+                                    <input id="@formId-prob" name="Input.Probabilidad" value="@i.Probabilidad" type="number" min="0" max="100" step="5"
+                                           class="form-control" disabled="@off" data-prob-input />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-cierre">Cierre estimado</label>
+                                    <input id="@formId-cierre" name="Input.FechaCierreEstimada" value="@i.FechaCierreEstimada?.ToString("yyyy-MM-dd")" type="date"
+                                           class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-12 @(i.Etapa == EtapaOportunidad.Perdida ? "" : "d-none")" data-motivo>
+                                    <label class="form-label" for="@formId-motivo">Motivo de pérdida</label>
+                                    <input id="@formId-motivo" name="Input.MotivoPerdida" value="@i.MotivoPerdida" class="form-control" maxlength="500" disabled="@off"
+                                           placeholder="Precio, tiempos, eligió otra opción…" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("note") Notas</h2></div>
+                        <div class="gas-card__body">
+                            <textarea name="Input.Notas" class="form-control" rows="4" maxlength="2000" disabled="@off"
+                                      placeholder="Necesidades, contexto, próximos pasos…">@i.Notas</textarea>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header">
+                            <h2>@Iconos.Svg("note") Cotizaciones</h2>
+                            @if (!Model.EsNuevo && Model.PuedeGestionar)
+                            {
+                                <a class="btn btn-sm btn-gas-outline" href="@Url.Page("/Comercial/Cotizaciones/Index", new { nueva = Model.Id })">@Iconos.Svg("plus") Cotizar</a>
+                            }
+                        </div>
+                        @if (Model.EsNuevo)
+                        {
+                            <div class="gas-empty">Guarda la oportunidad para poder cotizarla.</div>
+                        }
+                        else if (Model.Cotizaciones.Count == 0)
+                        {
+                            <div class="gas-empty">Aún no hay cotizaciones.</div>
+                        }
+                        else
+                        {
+                            <ul class="gas-timeline">
+                                @foreach (var c in Model.Cotizaciones)
+                                {
+                                    <li style="align-items: center;">
+                                        <div class="gas-timeline__body">
+                                            <a href="@Url.Page("/Comercial/Cotizaciones/Index", new { abrir = c.Id })" class="text-decoration-none"><strong>@c.Folio</strong></a>
+                                            <span>@c.Titulo · @Etiquetas.Dinero(c.Total, c.Moneda)</span>
+                                        </div>
+                                        <span class="gas-badge @Etiquetas.Badge(c.Estado)">@Etiquetas.Texto(c.Estado)</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </section>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <form method="post" asp-page="/Comercial/Oportunidades/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id" asp-route-vista="@Model.Vista"
+                  data-confirm-title="¿Eliminar esta oportunidad?"
+                  data-confirm="Solo es posible si no tiene cotizaciones. Si no se concretó, márcala como Perdida."
+                  data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Eliminar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">
+                    @if (Model.EsNuevo) { @Iconos.Svg("check") <span>Crear oportunidad</span> } else { @Iconos.Svg("save") <span>Guardar cambios</span> }
+                </button>
+            }
+        </div>
+    </div>
+</div>

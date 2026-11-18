@@ -1,0 +1,8 @@
+@model (string Nombre, string Id, string? Seleccionado, List<GAS.Admin.Services.Catalogos.OpcionUsuario> Opciones, bool Deshabilitado)
+<select id="@Model.Id" name="@Model.Nombre" class="form-select" disabled="@Model.Deshabilitado">
+    <option value="">Sin asignar</option>
+    @foreach (var u in Model.Opciones)
+    {
+        <option value="@u.Id" selected="@(u.Id == Model.Seleccionado)">@u.Nombre</option>
+    }
+</select>

@@ -1,0 +1,55 @@
+@model GAS.Admin.Pages.Infraestructura.Ambientes.DespliegueModalVm
+@{
+    var formId = $"form-desp-{Model.AmbienteId}";
+    var i = Model.Input;
+}
+<div data-size="md" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon gas-modal__icon--violet">@Iconos.Svg("rocket")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">Registrar despliegue</h2>
+            <div class="gas-modal__subtitle">@Model.Ambiente@(Model.VersionActual is null ? "" : $" · actual {Model.VersionActual}")</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Infraestructura/Ambientes/Index" asp-page-handler="Desplegar" asp-route-ambienteId="@Model.AmbienteId">
+            <input type="hidden" name="volver" value="@Model.Volver" />
+            <section class="gas-card">
+                <div class="gas-card__body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="@formId-ver">Versión</label>
+                            <input id="@formId-ver" name="Input.Version" value="@i.Version" class="form-control" maxlength="50" placeholder="Ej. 1.8.2" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="@formId-fecha">Fecha y hora</label>
+                            <input id="@formId-fecha" name="Input.Fecha" value="@i.Fecha.ToString("yyyy-MM-ddTHH:mm")" type="datetime-local" class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="@formId-res">Resultado</label>
+                            <select id="@formId-res" name="Input.Resultado" class="form-select">
+                                @foreach (var r in Etiquetas.Valores<ResultadoDespliegue>()) { <option value="@r" selected="@(r == i.Resultado)">@Etiquetas.Texto(r)</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="@formId-ref">Rama o commit</label>
+                            <input id="@formId-ref" name="Input.Referencia" value="@i.Referencia" class="form-control" maxlength="150" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="@formId-notas">Notas</label>
+                            <textarea id="@formId-notas" name="Input.Notas" class="form-control" rows="3" maxlength="2000" placeholder="Cambios incluidos, migraciones, pasos manuales…">@i.Notas</textarea>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <p class="small text-muted mt-3 mb-0">La versión del ambiente se toma del último despliegue que no fue revertido.</p>
+        </form>
+    </div>
+    <div class="modal-footer">
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") Cancelar</button>
+            <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg("check") Registrar</button>
+        </div>
+    </div>
+</div>

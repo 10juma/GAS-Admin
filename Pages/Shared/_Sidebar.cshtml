@@ -1,0 +1,131 @@
+@inject GAS.Admin.Services.Navegacion.ContadoresMenu ContadoresMenu
+@{
+    var contadores = await ContadoresMenu.ObtenerAsync();
+    // (valor, tono): con tono, solo se muestra si es mayor a cero.
+    var conteos = new Dictionary<string, (int Valor, string? Tono, string? Titulo)>
+    {
+        ["/Productos/Index"] = (contadores.Productos, null, null),
+        ["/Productos/Conexiones"] = (contadores.ConexionesConError, "danger", "Productos sin conexión o con fallas"),
+        ["/Clientes"] = (contadores.ClientesActivos, null, "Clientes activos"),
+        ["/ServiciosExternos"] = (contadores.Renovaciones30d, "warning", "Renovaciones en los próximos 30 días"),
+        ["/Organizacion/Index"] = (contadores.PersonasActivas, null, "Personas activas"),
+        ["/Proyectos/Index"] = (contadores.TrabajosActivos, null, "Trabajos activos"),
+        ["/Proyectos/Tareas"] = (contadores.TareasVencidas, "danger", "Tareas vencidas"),
+        ["/Infraestructura/Incidentes"] = (contadores.IncidentesAbiertos, "danger", "Incidentes abiertos"),
+        ["/Infraestructura/Errores"] = (contadores.ErroresNuevos, "danger", "Errores nuevos de Sentry en las últimas 24 h"),
+        ["/Infraestructura/Integraciones"] = (contadores.IntegracionesConError, "danger", "Integraciones con error en su última sincronización"),
+        ["/Infraestructura/Dominios"] = (contadores.DominiosPorVencer, "warning", "Dominios o SSL que vencen en 30 días"),
+        ["/Infraestructura/Credenciales"] = (contadores.CredencialesPorRotar, "warning", "Credenciales por rotar o vencer en 30 días"),
+        ["/Soporte/Index"] = contadores.TicketsVencidos > 0
+            ? (contadores.TicketsVencidos, "danger", "Tickets con SLA vencido")
+            : (contadores.TicketsAbiertos, null, "Tickets abiertos"),
+        ["/Finanzas/Suscripciones"] = (contadores.PagosFallidosStripe, "danger", "Pagos fallidos en Stripe"),
+        ["/Finanzas/Movimientos"] = (contadores.MovimientosVencidos, "danger", "Cobros y pagos vencidos"),
+        ["/Comercial/Oportunidades"] = (contadores.OportunidadesAbiertas, null, "Oportunidades abiertas"),
+        ["/Comercial/Cotizaciones"] = (contadores.CotizacionesPorVencer, "warning", "Cotizaciones enviadas que vencen en 5 días o menos"),
+        ["/Administracion/Usuarios"] = (contadores.Usuarios, null, null),
+        ["/Administracion/Roles"] = (contadores.Roles, null, null),
+        ["/Administracion/Auditoria"] = (contadores.Alertas24h, "danger", "Alertas de seguridad en las últimas 24 h"),
+    };
+    var paginaActual = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
+}
+
+@functions {
+    private static readonly string Chevron = "<svg class='gas-nav__chev' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='m6 9 6 6 6-6'/></svg>";
+}
+
+<aside class="gas-sidebar" id="gas-sidebar" aria-label="Menú principal">
+    <div class="gas-sidebar__top">
+        <a href="/" class="gas-sidebar__brand" title="Global App Suite">
+            <img src="~/images/gas-logo.png" alt="" class="gas-sidebar__logo" />
+            <span class="gas-sidebar__brand-text">
+                <span class="gas-sidebar__brand-name">GLOBAL APP SUITE</span>
+                <span class="gas-sidebar__brand-sub">ADMINISTRATION</span>
+            </span>
+        </a>
+        <button type="button" class="gas-sidebar__toggle" data-menu-mini aria-label="Contraer menú" title="Contraer menú">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M16 15l-3-3 3-3"/></svg>
+        </button>
+    </div>
+
+    <nav class="gas-nav" data-nav>
+        @foreach (var grupo in MenuPrincipal.Grupos)
+        {
+            var visibles = grupo.Items.Where(i => MenuPrincipal.PuedeVer(i, User)).ToList();
+            if (visibles.Count == 0)
+            {
+                continue;
+            }
+
+            if (grupo.Directo)
+            {
+                <div class="gas-nav__directos">
+                    @foreach (var item in visibles)
+                    {
+                        @Enlace(item)
+                    }
+                </div>
+                continue;
+            }
+
+            var abierto = visibles.Any(i => MenuPrincipal.EsActivo(i, paginaActual));
+            var alertas = visibles.Sum(i => conteos.TryGetValue(i.Prefijos[0], out var c) && c.Tono == "danger" ? c.Valor : 0);
+            <div class="gas-nav__group @(abierto ? "is-open" : "")" data-grupo="@grupo.Clave">
+                <button type="button" class="gas-nav__head" aria-expanded="@(abierto ? "true" : "false")" title="@grupo.Titulo">
+                    @Html.Raw(MenuPrincipal.Svg(grupo.Icono))
+                    <span class="gas-nav__text">@grupo.Titulo</span>
+                    @if (alertas > 0)
+                    {
+                        <span class="gas-nav__count gas-nav__count--danger gas-nav__alerta" title="Pendientes que requieren atención">@alertas</span>
+                    }
+                    @Html.Raw(Chevron)
+                </button>
+                <div class="gas-nav__items">
+                    <div class="gas-nav__inner">
+                        <span class="gas-nav__flytitle">@grupo.Titulo</span>
+                        @foreach (var item in visibles)
+                        {
+                            @Enlace(item)
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </nav>
+
+    <div class="gas-sidebar__user dropup">
+        <button class="gas-user-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="@User.NombreVisible()">
+            <span class="gas-avatar @Avatar.Clase(User.Identity?.Name)">@User.Iniciales()</span>
+            <span class="gas-user-btn__text">
+                <span class="gas-user-btn__name">@User.NombreVisible()</span>
+                <span class="gas-user-btn__mail">@User.Identity?.Name</span>
+            </span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg>
+        </button>
+        <div class="dropdown-menu gas-user-menu">
+            <div class="gas-user-menu__head">
+                <strong>@User.NombreVisible()</strong>
+                <span>@User.Identity?.Name</span>
+            </div>
+            <a class="dropdown-item" asp-page="/Account/ChangePassword">@Iconos.Svg("key") Cambiar contraseña</a>
+            <div class="dropdown-divider"></div>
+            <form method="post" asp-page="/Account/Logout" class="m-0">
+                <button type="submit" class="dropdown-item">@Iconos.Svg("log-out") Cerrar sesión</button>
+            </form>
+        </div>
+    </div>
+</aside>
+
+@{
+    IHtmlContent Enlace(ItemMenu item)
+    {
+        var activo = MenuPrincipal.EsActivo(item, paginaActual);
+        var tieneConteo = conteos.TryGetValue(item.Prefijos[0], out var conteo) && (conteo.Tono is null || conteo.Valor > 0);
+        return new HtmlString(
+            $"<a href=\"{Url.Page(item.Pagina)}\" class=\"gas-nav__item{(activo ? " is-active" : "")}\"{(activo ? " aria-current=\"page\"" : "")} title=\"{System.Net.WebUtility.HtmlEncode(item.Nombre)}\">"
+            + MenuPrincipal.Svg(item.Icono)
+            + $"<span class=\"gas-nav__text\">{System.Net.WebUtility.HtmlEncode(item.Nombre)}</span>"
+            + (tieneConteo ? $"<span class=\"gas-nav__count{(conteo.Tono is null ? "" : " gas-nav__count--" + conteo.Tono)}\" title=\"{System.Net.WebUtility.HtmlEncode(conteo.Titulo ?? "")}\">{conteo.Valor}</span>" : "")
+            + "</a>");
+    }
+}

@@ -1,0 +1,191 @@
+@model GAS.Admin.Pages.Proyectos.Tareas.TareaModalVm
+@using System.Globalization
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-tarea-nueva" : $"form-tarea-{Model.Id}";
+    var i = Model.Input;
+    var archivos = (Model.Archivos, (int?)i.TrabajoId, (int?)null, Model.Id, Model.Volver, Model.PuedeGestionar);
+    var horas = Model.Horas.Sum(h => h.Horas);
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg("check")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@(Model.EsNuevo ? "Nueva tarea" : i.Titulo)</h2>
+            @if (!Model.EsNuevo)
+            {
+                <div class="gas-badges mt-2">
+                    <span class="gas-badge @Etiquetas.Badge(i.Estado)">@Etiquetas.Texto(i.Estado)</span>
+                    <span class="gas-badge @Etiquetas.Badge(i.Prioridad)">@Etiquetas.Texto(i.Prioridad)</span>
+                    <span class="gas-badge gas-badge--plain">@Iconos.Svg("clock") @horas.ToString("0.##") h@(i.HorasEstimadas is null ? "" : $" de {i.HorasEstimadas:0.##} h")</span>
+                    <partial name="_Trazabilidad" model="(Model.CreadoUtc, Model.CreadoPor, Model.ModificadoUtc, Model.ModificadoPor)" />
+                </div>
+            }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Proyectos/Tareas/Index"
+              asp-page-handler="@(Model.EsNuevo ? "Crear" : "Guardar")" asp-route-id="@Model.Id">
+            <input type="hidden" name="volver" value="@Model.Volver" />
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Tarea</h2></div>
+                        <div class="gas-card__body">
+                            <label class="form-label" for="@formId-titulo">Título</label>
+                            <input id="@formId-titulo" name="Input.Titulo" value="@i.Titulo" class="form-control mb-3" maxlength="200" disabled="@off" />
+                            <label class="form-label" for="@formId-desc">Descripción</label>
+                            <textarea id="@formId-desc" name="Input.Descripcion" class="form-control" rows="6" maxlength="4000" disabled="@off">@i.Descripcion</textarea>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("users") Asignación</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-trabajo">Trabajo</label>
+                                    <select id="@formId-trabajo" name="Input.TrabajoId" class="form-select" disabled="@off" data-trabajo-tarea>
+                                        <option value="">Tarea suelta (sin trabajo)</option>
+                                        @foreach (var t in Model.Trabajos) { <option value="@t.Id" selected="@(t.Id == i.TrabajoId)">@t.Folio · @t.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-ent">Entregable</label>
+                                    <select id="@formId-ent" name="Input.EntregableId" class="form-select" disabled="@off" data-entregable>
+                                        <option value="">Ninguno</option>
+                                        @foreach (var e in Model.Entregables) { <option value="@e.Id" data-trabajo="@e.TrabajoId" selected="@(e.Id == i.EntregableId)">@e.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-resp">Responsable</label>
+                                    <select id="@formId-resp" name="Input.ResponsableId" class="form-select" disabled="@off">
+                                        <option value="">Sin asignar</option>
+                                        @foreach (var p in Model.Personas) { <option value="@p.Id" selected="@(p.Id == i.ResponsableId)">@p.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-depto">Departamento</label>
+                                    <select id="@formId-depto" name="Input.DepartamentoId" class="form-select" disabled="@off">
+                                        <option value="">Ninguno</option>
+                                        @foreach (var d in Model.Departamentos) { <option value="@d.Id" selected="@(d.Id == i.DepartamentoId)">@d.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-estado">Estado</label>
+                                    <select id="@formId-estado" name="Input.Estado" class="form-select" disabled="@off">
+                                        @foreach (var e in Etiquetas.Valores<EstadoTarea>()) { <option value="@e" selected="@(e == i.Estado)">@Etiquetas.Texto(e)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-prio">Prioridad</label>
+                                    <select id="@formId-prio" name="Input.Prioridad" class="form-select" disabled="@off">
+                                        @foreach (var p in Etiquetas.Valores<Prioridad>()) { <option value="@p" selected="@(p == i.Prioridad)">@Etiquetas.Texto(p)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-ini">Inicio</label>
+                                    <input id="@formId-ini" name="Input.FechaInicio" value="@i.FechaInicio?.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-venc">Vence</label>
+                                    <input id="@formId-venc" name="Input.FechaVencimiento" value="@i.FechaVencimiento?.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-est">Horas est.</label>
+                                    <input id="@formId-est" name="Input.HorasEstimadas" value="@i.HorasEstimadas?.ToString(CultureInfo.InvariantCulture)" type="number" min="0" max="999" step="0.25" class="form-control" disabled="@off" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </form>
+
+        @if (!Model.EsNuevo)
+        {
+            <div class="row g-3 mt-0">
+                <div class="col-lg-6">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("mail") Comentarios <span class="gas-chip__count" style="border:1px solid var(--gas-border);">@Model.Comentarios.Count</span></h2></div>
+                        @if (Model.Comentarios.Count > 0)
+                        {
+                            <ul class="gas-timeline">
+                                @foreach (var c in Model.Comentarios)
+                                {
+                                    <li>
+                                        <span class="gas-avatar gas-avatar--sm @Avatar.Clase(c.Autor)">@Avatar.Iniciales(c.Autor)</span>
+                                        <div class="gas-timeline__body">
+                                            <strong>@c.Autor</strong> <span class="d-inline text-muted small">· @Fechas.Relativo(c.FechaUtc).ToLowerInvariant()</span>
+                                            <div style="white-space: pre-line; color: var(--gas-text); font-size: 13px;">@c.Texto</div>
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                        @if (Model.PuedeComentar)
+                        {
+                            <form method="post" asp-page="/Proyectos/Tareas/Index" asp-page-handler="Comentar" asp-route-id="@Model.Id" class="p-3 d-flex gap-2 align-items-start">
+                                <input type="hidden" name="volver" value="@Model.Volver" />
+                                <textarea name="texto" class="form-control form-control-sm" rows="2" maxlength="4000" placeholder="Escribe un comentario…" aria-label="Comentario"></textarea>
+                                <button type="submit" class="btn btn-sm btn-gas">@Iconos.Svg("check") Enviar</button>
+                            </form>
+                        }
+                    </section>
+                </div>
+                <div class="col-lg-6">
+                    <section class="gas-card">
+                        <div class="gas-card__header">
+                            <h2>@Iconos.Svg("clock") Horas registradas</h2>
+                            @if (Model.PuedeRegistrarHoras)
+                            {
+                                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("/Proyectos/Horas/Index", "Nuevo", new { tareaId = Model.Id, volver = Model.Volver })">@Iconos.Svg("plus") Registrar</button>
+                            }
+                        </div>
+                        @if (Model.Horas.Count == 0)
+                        {
+                            <div class="gas-empty py-3">Sin horas registradas.</div>
+                        }
+                        else
+                        {
+                            <ul class="gas-timeline">
+                                @foreach (var h in Model.Horas.Take(8))
+                                {
+                                    <li>
+                                        <div class="gas-timeline__body"><strong>@h.Persona.NombreCompleto</strong><span>@h.Fecha.ToString("dd/MM/yyyy")@(string.IsNullOrEmpty(h.Nota) ? "" : " · " + h.Nota)</span></div>
+                                        <span class="gas-badge gas-badge--violet gas-badge--plain">@h.Horas.ToString("0.##") h</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </section>
+                    <section class="gas-card">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("note") Archivos</h2></div>
+                        <partial name="/Pages/Proyectos/_Archivos.cshtml" model="archivos" />
+                    </section>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <form method="post" asp-page="/Proyectos/Tareas/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id" asp-route-volver="@Model.Volver"
+                  data-confirm-title="¿Eliminar esta tarea?" data-confirm="Se borrarán sus comentarios. Si tiene horas registradas no se podrá eliminar."
+                  data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Eliminar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">@if (Model.EsNuevo) { @Iconos.Svg("check") <span>Crear tarea</span> } else { @Iconos.Svg("save") <span>Guardar cambios</span> }</button>
+            }
+        </div>
+    </div>
+</div>

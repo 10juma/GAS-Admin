@@ -1,0 +1,206 @@
+@page "{id:int}"
+@model GAS.Admin.Pages.Soporte.Detalle.IndexModel
+@using GAS.Admin.Services.Soporte
+@{
+    var t = Model.T;
+    ViewData["Title"] = $"{t.Folio} · {t.Asunto}";
+    ViewData["Seccion"] = "Atención al cliente · Tickets";
+    var off = !Model.PuedeGestionar;
+    var asignado = ("asignadoId", "ticket-asignado", t.AsignadoId, Model.Usuarios, off);
+    string Limite(DateTime? limite, DateTime? cumplido)
+    {
+        if (limite is null) return "—";
+        if (cumplido is not null) return cumplido <= limite ? $"cumplido ({Fechas.Formato(cumplido)})" : $"fuera de tiempo ({Fechas.Formato(cumplido)})";
+        var r = limite.Value - Model.Ahora;
+        return r.TotalMinutes < 0 ? $"vencido hace {ServicioSoporte.Duracion(-r)}" : $"quedan {ServicioSoporte.Duracion(r)} ({Fechas.Formato(limite)})";
+    }
+}
+
+<div class="gas-page-header">
+    <div>
+        <a asp-page="/Soporte/Index" class="small text-decoration-none">@Iconos.Svg("arrow-left") Tickets</a>
+        <h1 class="mt-1"><partial name="_IconoPagina" />@t.Folio · @t.Asunto</h1>
+        <div class="gas-badges">
+            <span class="gas-badge @ServicioSoporte.TonoEstado(t.Estado)">@ServicioSoporte.TextoEstado(t.Estado)</span>
+            <span class="gas-badge @Etiquetas.Badge(t.Prioridad)">@Etiquetas.Texto(t.Prioridad)</span>
+            <span class="gas-badge gas-badge--plain">@Iconos.Svg(ServicioSoporte.IconoCanal(t.Canal)) @ServicioSoporte.TextoCanal(t.Canal)</span>
+            <span class="gas-badge gas-badge--plain">@ServicioSoporte.TextoCategoria(t.Categoria)</span>
+            @if (t.SlaVencido(Model.Ahora)) { <span class="gas-badge gas-badge--danger">@Iconos.Svg("alert") SLA vencido</span> }
+            <span class="small text-muted ms-1">abierto @Fechas.Relativo(t.CreadoUtc).ToLowerInvariant()</span>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-8">
+        <section class="gas-card mb-4">
+            <div class="gas-card__header"><div><h2>@Iconos.Svg("note") Conversación</h2><p>Lo verde se envió al cliente; lo amarillo es interno.</p></div></div>
+            <div class="gas-card__body">
+                <div class="gas-hilo">
+                    @foreach (var m in Model.Mensajes)
+                    {
+                        var clase = m.Tipo switch { TipoMensajeTicket.Respuesta => "gas-msg--respuesta", TipoMensajeTicket.Nota => "gas-msg--nota", TipoMensajeTicket.Sistema => "gas-msg--sistema", _ => "" };
+                        <article class="gas-msg @clase">
+                            @if (m.Tipo == TipoMensajeTicket.Sistema)
+                            {
+                                <div class="gas-msg__texto">@Iconos.Svg("activity") @m.Texto · @Fechas.Relativo(m.FechaUtc).ToLowerInvariant()</div>
+                            }
+                            else
+                            {
+                                <div class="gas-msg__cabeza">
+                                    <span class="gas-avatar gas-avatar--sm @Avatar.Clase(m.Autor)">@Avatar.Iniciales(m.Autor)</span>
+                                    <strong>@m.Autor</strong>
+                                    @if (m.AutorEmail is not null && m.AutorEmail != m.Autor) { <span>@m.AutorEmail</span> }
+                                    <span>· @Fechas.Formato(m.FechaUtc)</span>
+                                    @switch (m.Tipo)
+                                    {
+                                        case TipoMensajeTicket.Cliente: <span class="gas-badge gas-badge--info">Cliente</span> break;
+                                        case TipoMensajeTicket.Nota: <span class="gas-badge gas-badge--warning">@Iconos.Svg("lock") Nota interna</span> break;
+                                        case TipoMensajeTicket.Respuesta:
+                                            if (m.CorreoEnviado == true) { <span class="gas-badge gas-badge--success">@Iconos.Svg("mail") Enviado por correo</span> }
+                                            else if (m.CorreoEnviado == false) { <span class="gas-badge gas-badge--danger" title="@m.CorreoError">@Iconos.Svg("alert") Correo no enviado</span> }
+                                            else { <span class="gas-badge gas-badge--plain">Solo registrada</span> }
+                                            break;
+                                    }
+                                </div>
+                                <div class="gas-msg__texto">@m.Texto</div>
+                            }
+                        </article>
+                    }
+                </div>
+            </div>
+        </section>
+
+        @if (Model.PuedeGestionar && t.Estado != EstadoTicket.Cerrado)
+        {
+            <section class="gas-card">
+                <div class="gas-card__header">
+                    <div><h2>@Iconos.Svg("mail") Responder</h2><p>@(t.ContactoEmail is null ? "Sin correo de contacto: la respuesta quedará solo registrada." : !Model.CorreoConfigurado ? "El correo (Resend) no está configurado: la respuesta quedará solo registrada." : $"Se enviará a {t.ContactoEmail} con el folio en el asunto.")</p></div>
+                </div>
+                <div class="gas-card__body">
+                    <form method="post" asp-page-handler="Responder" asp-route-id="@t.Id">
+                        <input type="hidden" name="articuloId" value="" />
+                        @if (Model.Articulos.Count > 0)
+                        {
+                            <select class="form-select form-select-sm mb-2" data-insertar-articulo aria-label="Insertar artículo de conocimiento" style="max-width: 420px;">
+                                <option value="">@("Insertar un artículo de conocimiento…")</option>
+                                @foreach (var a in Model.Articulos) { <option value="@a.Id" data-contenido="@a.Contenido">@a.Titulo</option> }
+                            </select>
+                        }
+                        <textarea name="texto" class="form-control mb-2" rows="6" maxlength="8000" placeholder="Hola, gracias por escribirnos…" aria-label="Respuesta"></textarea>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" name="resolver" value="false" class="btn btn-gas">@Iconos.Svg("mail") Enviar respuesta</button>
+                            <button type="submit" name="resolver" value="true" class="btn btn-gas-outline">@Iconos.Svg("check") Enviar y marcar resuelto</button>
+                        </div>
+                    </form>
+                    <hr />
+                    <form method="post" asp-page-handler="Nota" asp-route-id="@t.Id">
+                        <label class="form-label" for="nota-interna">@Iconos.Svg("lock") Nota interna (el cliente no la ve)</label>
+                        <textarea id="nota-interna" name="texto" class="form-control mb-2" rows="3" maxlength="8000" placeholder="Hallazgos, pasos que se probaron, a quién se consultó…"></textarea>
+                        <button type="submit" class="btn btn-sm btn-gas-outline">@Iconos.Svg("plus") Agregar nota</button>
+                    </form>
+                </div>
+            </section>
+        }
+    </div>
+
+    <div class="col-xl-4">
+        <section class="gas-card mb-4">
+            <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Datos</h2></div>
+            <div class="gas-card__body">
+                <form method="post" asp-page-handler="Datos" asp-route-id="@t.Id">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label" for="ticket-estado">Estado</label>
+                            <select id="ticket-estado" name="estado" class="form-select" disabled="@off">
+                                @foreach (var e in Etiquetas.Valores<EstadoTicket>()) { <option value="@e" selected="@(e == t.Estado)">@ServicioSoporte.TextoEstado(e)</option> }
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="ticket-prio">Prioridad</label>
+                            <select id="ticket-prio" name="prioridad" class="form-select" disabled="@off">
+                                @foreach (var p in Etiquetas.Valores<Prioridad>().Reverse()) { <option value="@p" selected="@(p == t.Prioridad)">@Etiquetas.Texto(p)</option> }
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="ticket-cat">Categoría</label>
+                            <select id="ticket-cat" name="categoria" class="form-select" disabled="@off">
+                                @foreach (var c in Etiquetas.Valores<CategoriaTicket>()) { <option value="@c" selected="@(c == t.Categoria)">@ServicioSoporte.TextoCategoria(c)</option> }
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="ticket-asignado">Asignado a</label>
+                            <partial name="_SelectResponsable" model="asignado" />
+                        </div>
+                        @if (Model.PuedeGestionar) { <div class="col-12"><button type="submit" class="btn btn-sm btn-gas">@Iconos.Svg("save") Guardar cambios</button></div> }
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <section class="gas-card mb-4">
+            <div class="gas-card__header"><h2>@Iconos.Svg("clock") Tiempos de servicio</h2></div>
+            <div class="gas-card__body">
+                <dl class="gas-totales__lista">
+                    <dt>Primera respuesta</dt><dd class="small @(t.PrimeraRespuestaVencida(Model.Ahora) ? "text-danger fw-semibold" : "")">@Limite(t.VencePrimeraRespuestaUtc, t.PrimeraRespuestaUtc)</dd>
+                    <dt>Resolución</dt><dd class="small @(t.ResolucionVencida(Model.Ahora) ? "text-danger fw-semibold" : "")">@Limite(t.VenceResolucionUtc, t.ResueltoUtc)</dd>
+                </dl>
+            </div>
+        </section>
+
+        <section class="gas-card mb-4">
+            <div class="gas-card__header"><h2>@Iconos.Svg("users") Cliente</h2></div>
+            <div class="gas-card__body">
+                <dl class="gas-totales__lista">
+                    <dt>Contacto</dt><dd>@(t.ContactoNombre ?? "—")<div class="small text-muted">@t.ContactoEmail</div></dd>
+                    @if (t.Producto is not null) { <dt>Producto</dt><dd>@t.Producto.Nombre</dd> }
+                    @if (t.CuentaProducto is not null) { <dt>Cuenta</dt><dd><a asp-page="/Productos/Cuentas/Index" asp-route-buscar="@t.CuentaProducto.ExternoId" asp-route-vista="todas">@t.CuentaProducto.Nombre</a><div class="small text-muted">@ServicioSoporte.Recortar(t.CuentaProducto.Plan, 50) · @t.CuentaProducto.Estado</div></dd> }
+                    @if (t.Cliente is not null) { <dt>Cliente de GAS</dt><dd>@(t.Cliente.NombreComercial ?? t.Cliente.Nombre)</dd> }
+                </dl>
+                @if (Model.Anteriores.Count > 0)
+                {
+                    <div class="gas-stat__label mt-3 mb-1">Otros tickets de este contacto</div>
+                    @foreach (var a in Model.Anteriores)
+                    {
+                        <div class="small"><a asp-page="/Soporte/Detalle/Index" asp-route-id="@a.Id">@a.Folio</a> · @a.Asunto <span class="gas-badge @ServicioSoporte.TonoEstado(a.Estado)">@ServicioSoporte.TextoEstado(a.Estado)</span></div>
+                    }
+                }
+            </div>
+        </section>
+
+        <section class="gas-card mb-4">
+            <div class="gas-card__header"><div><h2>@Iconos.Svg("layers") Proyectos</h2><p>Para errores o cambios que requiere el equipo técnico.</p></div></div>
+            <div class="gas-card__body">
+                @if (t.Tarea is not null)
+                {
+                    <div>@Iconos.Svg("check") Tarea: <strong>@t.Tarea.Titulo</strong></div>
+                    <div class="gas-badges mt-2"><span class="gas-badge @Etiquetas.Badge(t.Tarea.Estado)">@Etiquetas.Texto(t.Tarea.Estado)</span>
+                        <a asp-page="/Proyectos/Tareas/Index" class="gas-badge gas-badge--info gas-badge--btn text-decoration-none">@Iconos.Svg("arrow-right") Tablero</a></div>
+                }
+                else if (Model.PuedeEscalar)
+                {
+                    <form method="post" asp-page-handler="Escalar" asp-route-id="@t.Id"
+                          data-confirm-title="¿Escalar a Proyectos?" data-confirm="Se creará una tarea en el tablero con el último mensaje del cliente." data-confirm-ok="Escalar">
+                        <label class="form-label" for="esc-trab">Trabajo (opcional)</label>
+                        <select id="esc-trab" name="trabajoId" class="form-select mb-2">
+                            <option value="">Sin trabajo (tarea suelta)</option>
+                            @foreach (var x in Model.Trabajos) { <option value="@x.Id">@x.Nombre</option> }
+                        </select>
+                        <label class="form-label" for="esc-resp">Responsable (opcional)</label>
+                        <select id="esc-resp" name="responsableId" class="form-select mb-2">
+                            <option value="">Sin asignar</option>
+                            @foreach (var x in Model.Personas) { <option value="@x.Id">@x.Nombre</option> }
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-gas-outline">@Iconos.Svg("arrow-right") Escalar a Proyectos</button>
+                    </form>
+                }
+                else { <span class="text-muted small">No escalado.</span> }
+            </div>
+        </section>
+
+        @if (Model.PuedeGestionar)
+        {
+            <a asp-page="/Soporte/Conocimiento/Index" asp-route-desdeTicket="@t.Id" class="btn btn-sm btn-gas-outline w-100">@Iconos.Svg("note") Crear artículo con esta solución</a>
+        }
+    </div>
+</div>

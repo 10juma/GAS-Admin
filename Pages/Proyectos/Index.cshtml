@@ -1,0 +1,133 @@
+@page
+@model GAS.Admin.Pages.Proyectos.IndexModel
+@{
+    ViewData["Title"] = "Trabajos";
+    ViewData["Seccion"] = "Proyectos";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var vista = Model.Vista ?? "activos";
+    var uso = Model.Capacidad > 0 ? Math.Round(Model.HorasSemana / Model.Capacidad * 100) : (decimal?)null;
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Trabajos</h1>
+        <p>Proyectos, servicios recurrentes, trabajos puntuales e internos. Todo lo que GAS se comprometió a hacer.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Nuevo trabajo</button>
+    }
+</div>
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("layers")</span>
+        <div><div class="gas-stat__label">Trabajos activos</div><div class="gas-stat__value">@Model.Activos</div><div class="gas-stat__hint">@Model.Cerrados cerrados o cancelados</div></div>
+    </div>
+    <div class="gas-card gas-stat @(Model.Atrasados > 0 ? "gas-stat--danger" : "gas-stat--muted")">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div><div class="gas-stat__label">Atrasados</div><div class="gas-stat__value">@Model.Atrasados</div><div class="gas-stat__hint">entrega comprometida vencida</div></div>
+    </div>
+    <div class="gas-card gas-stat @(Model.TareasVencidas > 0 ? "gas-stat--warning" : "gas-stat--muted")">
+        <span class="gas-stat__icon">@Iconos.Svg("clock")</span>
+        <div><div class="gas-stat__label">Tareas vencidas</div><div class="gas-stat__value">@Model.TareasVencidas</div><div class="gas-stat__hint"><a asp-page="/Proyectos/Tareas/Index">ver tablero</a></div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--violet">
+        <span class="gas-stat__icon">@Iconos.Svg("activity")</span>
+        <div><div class="gas-stat__label">Horas esta semana</div><div class="gas-stat__value">@Model.HorasSemana.ToString("0.#") h</div><div class="gas-stat__hint">de @Model.Capacidad h de capacidad@(uso is null ? "" : $" · {uso}%")</div></div>
+    </div>
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Vista">
+            <a asp-page="Index" asp-route-tipo="@Model.Tipo" class="gas-chip gas-chip--info @(vista == "activos" ? "is-active" : "")">Activos <span class="gas-chip__count">@Model.Activos</span></a>
+            <a asp-page="Index" asp-route-vista="atrasados" asp-route-tipo="@Model.Tipo" class="gas-chip @(Model.Atrasados > 0 ? "gas-chip--danger" : "") @(vista == "atrasados" ? "is-active" : "")">Atrasados <span class="gas-chip__count">@Model.Atrasados</span></a>
+            <a asp-page="Index" asp-route-vista="cerrados" asp-route-tipo="@Model.Tipo" class="gas-chip gas-chip--success @(vista == "cerrados" ? "is-active" : "")">Cerrados <span class="gas-chip__count">@Model.Cerrados</span></a>
+            <a asp-page="Index" asp-route-vista="todos" asp-route-tipo="@Model.Tipo" class="gas-chip gas-chip--dark @(vista == "todos" ? "is-active" : "")">Todos <span class="gas-chip__count">@Model.Total</span></a>
+        </nav>
+        <nav class="gas-chips" aria-label="Tipo">
+            @foreach (var t in Etiquetas.Valores<TipoTrabajoOperativo>())
+            {
+                var activo = Model.Tipo == t.ToString();
+                <a asp-page="Index" asp-route-vista="@Model.Vista" asp-route-tipo="@(activo ? null : t.ToString())"
+                   class="gas-chip @Etiquetas.Chip(t) @(activo ? "is-active" : "")">@Etiquetas.Texto(t) <span class="gas-chip__count">@Model.PorTipo.GetValueOrDefault(t)</span></a>
+            }
+        </nav>
+    </div>
+
+    @if (Model.Trabajos.Count == 0)
+    {
+        <div class="gas-empty">
+            @Iconos.Svg("layers") No hay trabajos en esta vista.
+            <span class="small">Los trabajos se crean al aprobar una cotización o con "Nuevo trabajo".</span>
+        </div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr>
+                        <th>Trabajo</th>
+                        <th>Para</th>
+                        <th>Avance</th>
+                        <th>Entrega</th>
+                        <th>Estado</th>
+                        <th>Responsable</th>
+                        <th class="text-end"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Model.Trabajos)
+                    {
+                        var t = f.Trabajo;
+                        var avance = f.Tareas == 0 ? 0 : (int)Math.Round(f.TareasTerminadas * 100.0 / f.Tareas);
+                        <tr style="@(t.Activo ? "" : "opacity: .65;")">
+                            <td>
+                                <a asp-page="/Proyectos/Detalle/Index" asp-route-id="@t.Id" class="text-decoration-none">
+                                    <div class="gas-person__text">
+                                        <span class="gas-person__name">@t.Folio · @t.Nombre</span>
+                                        <span class="gas-badges mt-1">
+                                            <span class="gas-badge @Etiquetas.Badge(t.Tipo)">@Etiquetas.Texto(t.Tipo)</span>
+                                            @if (t.Prioridad is Prioridad.Alta or Prioridad.Urgente) { <span class="gas-badge @Etiquetas.Badge(t.Prioridad)">@Etiquetas.Texto(t.Prioridad)</span> }
+                                        </span>
+                                    </div>
+                                </a>
+                            </td>
+                            <td>@(f.Para ?? "—")@(t.EsInterno ? " (interno)" : "")</td>
+                            <td style="min-width: 150px;">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="gas-progress flex-grow-1"><span style="width: @avance%"></span></div>
+                                    <span class="small text-muted text-nowrap">@f.TareasTerminadas/@f.Tareas</span>
+                                </div>
+                                <span class="small text-muted">@f.Horas.ToString("0.#") h registradas</span>
+                            </td>
+                            <td>
+                                @if (t.FechaEntrega is null) { <span class="text-muted">—</span> }
+                                else { <span class="gas-badge @(f.Atrasado ? "gas-badge--danger" : "gas-badge--plain")">@Iconos.Svg("calendar") @t.FechaEntrega.Value.ToString("dd/MM/yyyy")</span> }
+                            </td>
+                            <td><span class="gas-badge @Etiquetas.Badge(t.Estado)">@Etiquetas.Texto(t.Estado)</span></td>
+                            <td>
+                                @if (f.Responsable is not null)
+                                {
+                                    <span class="gas-avatar gas-avatar--sm gas-avatar--@(f.Color ?? "c1")" title="@f.Responsable">@Avatar.Iniciales(f.Responsable)</span>
+                                }
+                            </td>
+                            <td class="text-end text-nowrap">
+                                <a asp-page="/Proyectos/Detalle/Index" asp-route-id="@t.Id" class="btn btn-sm btn-gas-outline">@Iconos.Svg("arrow-right") Abrir</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_TrabajoModal" model="Model.Modal" />
+    }
+}

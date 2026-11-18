@@ -1,0 +1,81 @@
+@model GAS.Admin.Pages.Comercial.Cotizaciones.EnvioModalVm
+@{
+    var formId = $"form-envio-{Model.Id}";
+}
+<div data-size="lg" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon">@Iconos.Svg("mail")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">Enviar @Model.Folio</h2>
+            <div class="gas-modal__subtitle">@Model.Titulo · @Model.Cliente · @Etiquetas.Dinero(Model.Total, Model.Moneda)</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        @if (!Model.Configurado)
+        {
+            <div class="gas-callout">
+                <div class="gas-callout__text">
+                    <strong>El envío de correo no está configurado</strong>
+                    Falta configurar Resend (API key y remitente). Un Admin lo captura en <strong>Organización › Configuración</strong>.
+                    Mientras tanto puedes descargar el PDF y enviarlo tú.
+                </div>
+            </div>
+        }
+        <form id="@formId" method="post" novalidate asp-page="/Comercial/Cotizaciones/Index" asp-page-handler="Enviar" asp-route-id="@Model.Id">
+            <input type="hidden" name="Estado" value="@Model.Filtro" />
+            <input type="hidden" name="Q" value="@Model.Q" />
+            <section class="gas-card">
+                <div class="gas-card__header">
+                    <div>
+                        <h2>@Iconos.Svg("mail") Mensaje</h2>
+                        <p>Se adjunta el PDF. Las respuestas llegan a tu correo.@(Model.Remitente is null ? "" : " Remitente: " + Model.Remitente)</p>
+                    </div>
+                </div>
+                <div class="gas-card__body">
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            <label class="form-label" for="@formId-para">Para</label>
+                            <input id="@formId-para" name="Envio.Para" value="@Model.Input.Para" class="form-control" placeholder="correo@cliente.com, otro@cliente.com" />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label" for="@formId-cc">Copia</label>
+                            <input id="@formId-cc" name="Envio.Copia" value="@Model.Input.Copia" class="form-control" placeholder="Opcional" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="@formId-asunto">Asunto</label>
+                            <input id="@formId-asunto" name="Envio.Asunto" value="@Model.Input.Asunto" class="form-control" maxlength="300" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="@formId-msg">Mensaje</label>
+                            <textarea id="@formId-msg" name="Envio.Mensaje" class="form-control" rows="8" maxlength="4000">@Model.Input.Mensaje</textarea>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </form>
+        @if (Model.Envios.Count > 0)
+        {
+            <section class="gas-card">
+                <div class="gas-card__header"><h2>@Iconos.Svg("clock") Envíos anteriores</h2></div>
+                <ul class="gas-timeline">
+                    @foreach (var e in Model.Envios)
+                    {
+                        <li>
+                            <span class="gas-timeline__dot @(e.Exito ? "gas-timeline__dot--success" : "gas-timeline__dot--danger")"></span>
+                            <div class="gas-timeline__body"><strong>@e.Para</strong><span>@(e.Exito ? e.EnviadoPor : "Error: " + e.Error)</span></div>
+                            <span class="gas-badge gas-badge--plain">@Fechas.Relativo(e.FechaUtc)</span>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+    </div>
+    <div class="modal-footer">
+        <a class="btn btn-gas-outline" href="@Url.Page("/Comercial/Cotizaciones/Index", "Pdf", new { id = Model.Id })" target="_blank" rel="noopener">@Iconos.Svg("note") Ver PDF</a>
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") Cancelar</button>
+            <button type="submit" form="@formId" class="btn btn-gas" disabled="@(!Model.Configurado)">@Iconos.Svg("mail") Enviar</button>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,115 @@
+@page
+@model GAS.Admin.Pages.Productos.Cuentas.IndexModel
+@using GAS.Admin.Services.Productos
+@{
+    ViewData["Title"] = "Cuentas de productos";
+    ViewData["Seccion"] = "Productos";
+    var vista = Model.Vista ?? "vigentes";
+    var volver = Model.VolverActual;
+    Dictionary<string, string> Ruta(string? v, int? producto) => new Dictionary<string, string?>
+        { ["vista"] = v, ["producto"] = producto?.ToString(), ["buscar"] = Model.Buscar }
+        .Where(x => !string.IsNullOrEmpty(x.Value)).ToDictionary(x => x.Key, x => x.Value!);
+    var chips = new (string Clave, string Texto, string Tono)[]
+    {
+        ("vigentes", "Vigentes", "gas-chip--success"), ("prueba", "En prueba", "gas-chip--info"), ("riesgo", "Sin uso 30 días", "gas-chip--warning"),
+        ("suspendidas", "Suspendidas", "gas-chip--danger"), ("canceladas", "Canceladas", ""), ("todas", "Todas", "gas-chip--dark")
+    };
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Cuentas de productos</h1>
+        <p>Negocios, organizaciones y vecindarios que usan cada producto, leídos de su API GAS. Las acciones se ejecutan en el producto y quedan en la bitácora.</p>
+    </div>
+    <a asp-page="/Productos/Conexiones/Index" class="btn btn-gas-outline">@Iconos.Svg("plug") Productos conectados</a>
+</div>
+
+@if (Model.Productos.Count == 0)
+{
+    <div class="gas-card"><div class="gas-empty">@Iconos.Svg("users") Ningún producto conectado. <span class="small">Conéctalos en Productos › Conexiones.</span></div></div>
+    return;
+}
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <div class="gas-card gas-stat gas-stat--success">
+        <span class="gas-stat__icon">@Iconos.Svg("users")</span>
+        <div><div class="gas-stat__label">Cuentas vigentes</div><div class="gas-stat__value">@Model.Conteos["vigentes"]</div><div class="gas-stat__hint">activas y en prueba</div></div>
+    </div>
+    <a asp-page="Index" asp-all-route-data="@Ruta("prueba", Model.Producto)" class="gas-card gas-stat gas-stat--info text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("calendar")</span>
+        <div><div class="gas-stat__label">En prueba</div><div class="gas-stat__value">@Model.Conteos["prueba"]</div><div class="gas-stat__hint">@Model.PruebasPorVencer vencen en 7 días</div></div>
+    </a>
+    <a asp-page="Index" asp-all-route-data="@Ruta("riesgo", Model.Producto)" class="gas-card gas-stat @(Model.Conteos["riesgo"] > 0 ? "gas-stat--warning" : "gas-stat--muted") text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div><div class="gas-stat__label">En riesgo</div><div class="gas-stat__value">@Model.Conteos["riesgo"]</div><div class="gas-stat__hint">activas sin uso en 30 días</div></div>
+    </a>
+    <a asp-page="Index" asp-all-route-data="@Ruta("suspendidas", Model.Producto)" class="gas-card gas-stat @(Model.Conteos["suspendidas"] > 0 ? "gas-stat--danger" : "gas-stat--muted") text-decoration-none">
+        <span class="gas-stat__icon">@Iconos.Svg("lock")</span>
+        <div><div class="gas-stat__label">Suspendidas</div><div class="gas-stat__value">@Model.Conteos["suspendidas"]</div><div class="gas-stat__hint">@Model.Conteos["canceladas"] canceladas</div></div>
+    </a>
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Producto">
+            <a asp-page="Index" asp-all-route-data="@Ruta(Model.Vista, null)" class="gas-chip gas-chip--dark @(Model.Producto is null ? "is-active" : "")">Todos los productos</a>
+            @foreach (var (id, nombre) in Model.Productos)
+            {
+                <a asp-page="Index" asp-all-route-data="@Ruta(Model.Vista, id)" class="gas-chip gas-chip--violet @(Model.Producto == id ? "is-active" : "")">@nombre</a>
+            }
+        </nav>
+        <form method="get" class="gas-filters">
+            @if (Model.Vista is not null) { <input type="hidden" name="vista" value="@Model.Vista" /> }
+            @if (Model.Producto is not null) { <input type="hidden" name="producto" value="@Model.Producto" /> }
+            <div class="gas-input-icon">
+                @Iconos.Svg("search")
+                <input type="search" name="buscar" value="@Model.Buscar" class="form-control form-control-sm" placeholder="Nombre, correo o plan…" aria-label="Buscar" />
+            </div>
+        </form>
+    </div>
+    <div class="px-3 pb-2">
+        <nav class="gas-chips" aria-label="Estado">
+            @foreach (var (clave, texto, tono) in chips)
+            {
+                <a asp-page="Index" asp-all-route-data="@Ruta(clave == "vigentes" ? null : clave, Model.Producto)" class="gas-chip @tono @(vista == clave ? "is-active" : "")">@texto <span class="gas-chip__count">@Model.Conteos.GetValueOrDefault(clave)</span></a>
+            }
+        </nav>
+    </div>
+    @if (Model.Cuentas.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("users") No hay cuentas en esta vista.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Cuenta</th><th>Producto · plan</th><th class="text-end">Usuarios</th><th>Último uso</th><th>Alta</th><th>Estado</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var c in Model.Cuentas)
+                    {
+                        var inactiva = c.Estado == "activa" && (c.UltimoUsoUtc is null || c.UltimoUsoUtc < Model.Hace30);
+                        <tr>
+                            <td>
+                                <div class="gas-person__text">
+                                    <span class="gas-person__name">@c.Nombre</span>
+                                    <span class="gas-person__email">@c.Email</span>
+                                    @if (c.Cliente is not null) { <span class="gas-badges mt-1"><span class="gas-badge gas-badge--info">@Iconos.Svg("building") @(c.Cliente.NombreComercial ?? c.Cliente.Nombre)</span></span> }
+                                </div>
+                            </td>
+                            <td>@c.Conexion.Producto.Nombre<div class="small text-muted">@(c.Plan ?? "sin plan")</div></td>
+                            <td class="text-end">@c.Usuarios</td>
+                            <td class="text-nowrap @(inactiva ? "text-warning fw-semibold" : "")">@(c.UltimoUsoUtc is null ? "Nunca" : Fechas.Relativo(c.UltimoUsoUtc))</td>
+                            <td class="text-nowrap">@(c.CreadaUtc is null ? "—" : Fechas.ALocal(c.CreadaUtc.Value).ToString("dd/MM/yyyy"))</td>
+                            <td>
+                                <span class="gas-badge @ServicioConexiones.TonoEstado(c.Estado)">@ServicioConexiones.TextoEstado(c.Estado)</span>
+                                @if (c.Estado == "prueba" && c.PruebaHastaUtc is not null) { <div class="small text-muted">hasta @Fechas.ALocal(c.PruebaHastaUtc.Value).ToString("dd/MM/yyyy")</div> }
+                            </td>
+                            <td class="text-end"><button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Cuenta", new { id = c.Id, volver })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Gestionar" : "Ver")</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.HayMas) { <div class="gas-pager">Se muestran las primeras 300. Usa la búsqueda o los filtros para acotar.</div> }
+    }
+</div>

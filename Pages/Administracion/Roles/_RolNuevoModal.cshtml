@@ -1,0 +1,30 @@
+@model GAS.Admin.Pages.Administracion.Roles.RolNuevoVm
+<div data-size="md" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon gas-modal__icon--violet">@Iconos.Svg("shield")</span>
+        <div>
+            <h2 class="modal-title">Nuevo rol</h2>
+            <div class="gas-modal__subtitle">Después de crearlo podrás asignarle permisos.</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        <form id="form-rol-nuevo" method="post" asp-page="/Administracion/Roles/Index" asp-page-handler="Crear" novalidate>
+            <section class="gas-card">
+                <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Datos del rol</h2></div>
+                <div class="gas-card__body">
+                    <label class="form-label" for="rol-nombre">Nombre del rol</label>
+                    <input id="rol-nombre" name="nombre" value="@Model.Nombre" class="form-control" maxlength="50" autocomplete="off"
+                           placeholder="Por ejemplo: Ventas, Dirección, Proyectos" />
+                    <div class="form-text">Solo letras, números y espacios.</div>
+                </div>
+            </section>
+        </form>
+    </div>
+    <div class="modal-footer">
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") Cancelar</button>
+            <button type="submit" form="form-rol-nuevo" class="btn btn-gas">@Iconos.Svg("check") Crear rol</button>
+        </div>
+    </div>
+</div>

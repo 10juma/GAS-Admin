@@ -1,0 +1,191 @@
+@page
+@model GAS.Admin.Pages.Organizacion.IndexModel
+@{
+    ViewData["Title"] = "Equipo";
+    ViewData["Seccion"] = "Organización";
+    if (Model.Modal is not null) ViewData["AbrirModal"] = true;
+    var personal = Model.Vista == "personal";
+    string Costo(Dictionary<string, decimal> d) => d.Count == 0 ? "—" : string.Join(" + ", d.OrderBy(x => x.Key).Select(x => Etiquetas.Dinero(x.Value, x.Key)));
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Equipo</h1>
+        <p>Personas de Global App Suite por departamento: socios, empleados y externos.</p>
+    </div>
+    <div class="gas-page-header__actions">
+        <nav class="gas-chips" aria-label="Vista">
+            <a asp-page="Index" class="gas-chip gas-chip--dark @(personal ? "" : "is-active")">@Iconos.Svg("layers") Organigrama</a>
+            <a asp-page="Index" asp-route-vista="personal" class="gas-chip gas-chip--info @(personal ? "is-active" : "")">@Iconos.Svg("users") Personal <span class="gas-chip__count">@Model.Todas.Count</span></a>
+        </nav>
+        @if (Model.PuedeGestionar)
+        {
+            <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo", new { vista = Model.Vista })">@Iconos.Svg("user-plus") Nueva persona</button>
+        }
+    </div>
+</div>
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <div class="gas-card gas-stat">
+        <span class="gas-stat__icon">@Iconos.Svg("users")</span>
+        <div><div class="gas-stat__label">Personas activas</div><div class="gas-stat__value">@Model.Activas</div><div class="gas-stat__hint">@Model.Socios socios · @Model.Externos externos</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("building")</span>
+        <div><div class="gas-stat__label">Departamentos</div><div class="gas-stat__value">@Model.Areas.Count</div><div class="gas-stat__hint">@Model.Areas.Count(a => a.Responsable is null) sin responsable</div></div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--violet">
+        <span class="gas-stat__icon">@Iconos.Svg("clock")</span>
+        <div><div class="gas-stat__label">Capacidad semanal</div><div class="gas-stat__value">@Model.HorasSemana h</div><div class="gas-stat__hint">horas disponibles del equipo activo</div></div>
+    </div>
+    @if (Model.VerCosto)
+    {
+        <div class="gas-card gas-stat gas-stat--warning">
+            <span class="gas-stat__icon">@Iconos.Svg("dollar")</span>
+            <div class="min-w-0"><div class="gas-stat__label">Costo mensual de referencia</div><div class="gas-stat__value" style="font-size: 20px; line-height: 1.25;">@Costo(Model.CostoMensual)</div><div class="gas-stat__hint">costo/hora × horas × 4.33 semanas</div></div>
+        </div>
+    }
+    else
+    {
+        <div class="gas-card gas-stat gas-stat--muted">
+            <span class="gas-stat__icon">@Iconos.Svg("lock")</span>
+            <div><div class="gas-stat__label">Costos del equipo</div><div class="gas-stat__value" style="font-size: 18px;">Restringido</div><div class="gas-stat__hint">requiere permiso de Finanzas</div></div>
+        </div>
+    }
+</div>
+
+@if (!personal)
+{
+    <div class="gas-org-grid">
+        @foreach (var area in Model.Areas)
+        {
+            var d = area.Departamento;
+            <section class="gas-card gas-org">
+                <span class="gas-org__strip gas-avatar--@d.Color"></span>
+                <header class="gas-org__head">
+                    <div class="min-w-0">
+                        <h2>@d.Nombre</h2>
+                        <p>@(d.Descripcion ?? "")</p>
+                    </div>
+                    <span class="gas-chip gas-chip--info" style="pointer-events: none;">@Iconos.Svg("users") <span class="gas-chip__count">@area.Personas.Count</span></span>
+                </header>
+                <div class="gas-org__resp">
+                    @if (area.Responsable is not null)
+                    {
+                        <span class="gas-badge gas-badge--success">@Iconos.Svg("shield") Responsable: @area.Responsable</span>
+                    }
+                    else
+                    {
+                        <span class="gas-badge gas-badge--warning">Sin responsable</span>
+                    }
+                </div>
+                <ul class="gas-org__people">
+                    @foreach (var p in area.Personas)
+                    {
+                        <li>
+                            <button type="button" class="gas-org__person" data-modal-url="@Url.Page("Index", "Editar", new { id = p.Persona.Id })">
+                                <span class="gas-avatar gas-avatar--sm gas-avatar--@d.Color">@Avatar.Iniciales(p.Persona.NombreCompleto)</span>
+                                <span class="gas-person__text">
+                                    <span class="gas-person__name">@p.Persona.NombreCompleto</span>
+                                    <span class="gas-person__email">@(p.Puesto ?? "Sin puesto")@(p.Persona.HorasSemana is null ? "" : $" · {p.Persona.HorasSemana} h/sem")</span>
+                                </span>
+                                <span class="gas-badge @Etiquetas.Badge(p.Persona.Tipo) ms-auto">@Etiquetas.Texto(p.Persona.Tipo)</span>
+                            </button>
+                        </li>
+                    }
+                    @if (area.Personas.Count == 0)
+                    {
+                        <li class="gas-org__empty">Sin personas asignadas.</li>
+                    }
+                </ul>
+                @if (Model.PuedeGestionar)
+                {
+                    <footer class="gas-org__foot">
+                        <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Nuevo", new { departamentoId = d.Id })">@Iconos.Svg("plus") Agregar persona</button>
+                    </footer>
+                }
+            </section>
+        }
+        @if (Model.SinDepartamento.Count > 0)
+        {
+            <section class="gas-card gas-org">
+                <header class="gas-org__head"><div><h2>Sin departamento</h2><p>Personas activas sin área asignada.</p></div></header>
+                <ul class="gas-org__people">
+                    @foreach (var p in Model.SinDepartamento)
+                    {
+                        <li>
+                            <button type="button" class="gas-org__person" data-modal-url="@Url.Page("Index", "Editar", new { id = p.Persona.Id })">
+                                <span class="gas-avatar gas-avatar--sm gas-avatar--muted">@Avatar.Iniciales(p.Persona.NombreCompleto)</span>
+                                <span class="gas-person__text"><span class="gas-person__name">@p.Persona.NombreCompleto</span><span class="gas-person__email">@(p.Puesto ?? "Sin puesto")</span></span>
+                                <span class="gas-badge @Etiquetas.Badge(p.Persona.Tipo) ms-auto">@Etiquetas.Texto(p.Persona.Tipo)</span>
+                            </button>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+    </div>
+}
+else
+{
+    <div class="gas-card">
+        @if (Model.Todas.Count == 0)
+        {
+            <div class="gas-empty">@Iconos.Svg("users") Aún no hay personas registradas.</div>
+        }
+        else
+        {
+            <div class="gas-table-wrap">
+                <table class="gas-table">
+                    <thead>
+                        <tr>
+                            <th>Persona</th>
+                            <th>Tipo</th>
+                            <th>Departamento y puesto</th>
+                            <th>Horas/sem</th>
+                            @if (Model.VerCosto) { <th>Costo/hora</th> }
+                            <th>Acceso</th>
+                            <th>Estado</th>
+                            <th class="text-end"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in Model.Todas)
+                        {
+                            var area = Model.Areas.FirstOrDefault(a => a.Departamento.Id == p.Persona.DepartamentoId);
+                            <tr style="@(p.Persona.Activa ? "" : "opacity: .6;")">
+                                <td>
+                                    <div class="gas-person">
+                                        <span class="gas-avatar gas-avatar--@(area?.Departamento.Color ?? "c1") @(p.Persona.Activa ? "" : "gas-avatar--muted")">@Avatar.Iniciales(p.Persona.NombreCompleto)</span>
+                                        <span class="gas-person__text"><span class="gas-person__name">@p.Persona.NombreCompleto</span><span class="gas-person__email">@(p.Persona.Correo ?? "")</span></span>
+                                    </div>
+                                </td>
+                                <td><span class="gas-badge @Etiquetas.Badge(p.Persona.Tipo)">@Etiquetas.Texto(p.Persona.Tipo)</span></td>
+                                <td><div class="gas-person__text"><span>@(area?.Departamento.Nombre ?? "—")</span><span class="gas-person__email">@(p.Puesto ?? "")</span></div></td>
+                                <td>@(p.Persona.HorasSemana?.ToString() ?? "—")</td>
+                                @if (Model.VerCosto) { <td>@(p.Persona.CostoHora is null ? "—" : Etiquetas.Dinero(p.Persona.CostoHora, p.Persona.MonedaCosto))</td> }
+                                <td>
+                                    @if (p.Usuario is not null) { <span class="gas-badge gas-badge--info" title="@p.Usuario">@Iconos.Svg("key") Usuario</span> }
+                                    else { <span class="gas-badge gas-badge--plain">Sin acceso</span> }
+                                </td>
+                                <td><span class="gas-badge @(p.Persona.Activa ? "gas-badge--success" : "")">@(p.Persona.Activa ? "Activa" : "Inactiva")</span></td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = p.Persona.Id, vista = Model.Vista })">
+                                        @if (Model.PuedeGestionar) { @Iconos.Svg("pencil") <span>Editar</span> } else { @Iconos.Svg("eye") <span>Ver</span> }
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_PersonaModal" model="Model.Modal" />
+    }
+}

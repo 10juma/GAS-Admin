@@ -1,0 +1,14 @@
+@model (List<GAS.Admin.Pages.Administracion.Usuarios.RolOpcion> Disponibles, List<string> Seleccionados, bool Deshabilitado)
+<div class="gas-options">
+    @foreach (var rol in Model.Disponibles)
+    {
+        <label class="gas-option">
+            <input type="checkbox" class="form-check-input" name="Input.Roles" value="@rol.Nombre"
+                   checked="@Model.Seleccionados.Contains(rol.Nombre)" disabled="@Model.Deshabilitado" />
+            <span>
+                <strong>@rol.Nombre</strong>
+                <span>@rol.Descripcion</span>
+            </span>
+        </label>
+    }
+</div>

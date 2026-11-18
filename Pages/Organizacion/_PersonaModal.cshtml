@@ -1,0 +1,208 @@
+@model GAS.Admin.Pages.Organizacion.PersonaModalVm
+@using System.Globalization
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-persona-nueva" : $"form-persona-{Model.Id}";
+    var i = Model.Input;
+    var depto = Model.Departamentos.FirstOrDefault(d => d.Id == i.DepartamentoId);
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        @if (Model.EsNuevo)
+        {
+            <span class="gas-modal__icon">@Iconos.Svg("user-plus")</span>
+            <div>
+                <h2 class="modal-title">Nueva persona</h2>
+                <div class="gas-modal__subtitle">Socios, empleados o externos. No necesitan usuario de GAS-Admin.</div>
+            </div>
+        }
+        else
+        {
+            <span class="gas-avatar gas-avatar--lg gas-avatar--@(depto?.Color ?? "c1") @(i.Activa ? "" : "gas-avatar--muted")">@Avatar.Iniciales(i.NombreCompleto)</span>
+            <div class="min-w-0">
+                <h2 class="modal-title">@i.NombreCompleto</h2>
+                <div class="gas-badges mt-2">
+                    <span class="gas-badge @Etiquetas.Badge(i.Tipo)">@Etiquetas.Texto(i.Tipo)</span>
+                    @if (!i.Activa) { <span class="gas-badge">Inactiva</span> }
+                    @if (depto is not null) { <span class="gas-badge gas-badge--plain">@Iconos.Svg("building") @depto.Nombre</span> }
+                    @foreach (var r in Model.Responsabilidades) { <span class="gas-badge gas-badge--success">Responsable de @r</span> }
+                    <partial name="_Trazabilidad" model="(Model.CreadoUtc, Model.CreadoPor, Model.ModificadoUtc, Model.ModificadoPor)" />
+                </div>
+            </div>
+        }
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Organizacion/Index"
+              asp-page-handler="@(Model.EsNuevo ? "Crear" : "Guardar")" asp-route-id="@Model.Id">
+            <input type="hidden" name="Vista" value="@Model.Vista" />
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("users") Datos de la persona</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label class="form-label" for="@formId-nombre">Nombre completo</label>
+                                    <input id="@formId-nombre" name="Input.NombreCompleto" value="@i.NombreCompleto" class="form-control" maxlength="150" disabled="@off" data-persona-nombre />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-tipo">Tipo</label>
+                                    <select id="@formId-tipo" name="Input.Tipo" class="form-select" disabled="@off">
+                                        @foreach (var t in Etiquetas.Valores<TipoPersona>())
+                                        {
+                                            <option value="@t" selected="@(t == i.Tipo)">@Etiquetas.Texto(t)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-7">
+                                    <label class="form-label" for="@formId-correo">Correo</label>
+                                    <input id="@formId-correo" name="Input.Correo" value="@i.Correo" type="email" class="form-control" disabled="@off" data-persona-correo />
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label" for="@formId-tel">Teléfono</label>
+                                    <input id="@formId-tel" name="Input.Telefono" value="@i.Telefono" type="tel" class="form-control" maxlength="30" disabled="@off" />
+                                </div>
+                                <div class="col-md-7">
+                                    <label class="form-label" for="@formId-usuario">Usuario de GAS-Admin</label>
+                                    <select id="@formId-usuario" name="Input.UsuarioId" class="form-select" disabled="@off" data-persona-usuario>
+                                        <option value="">Sin acceso al sistema</option>
+                                        @foreach (var u in Model.Usuarios)
+                                        {
+                                            <option value="@u.Id" selected="@(u.Id == i.UsuarioId)" data-nombre="@u.Nombre" data-email="@u.Email">@u.Nombre · @u.Email</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label" for="@formId-estado">Estado</label>
+                                    <select id="@formId-estado" name="Input.Activa" class="form-select" disabled="@off">
+                                        <option value="true" selected="@i.Activa">Activa</option>
+                                        <option value="false" selected="@(!i.Activa)">Inactiva</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("building") Lugar en la organización</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-depto">Departamento</label>
+                                    <select id="@formId-depto" name="Input.DepartamentoId" class="form-select" disabled="@off" data-departamento>
+                                        <option value="">Sin departamento</option>
+                                        @foreach (var d in Model.Departamentos)
+                                        {
+                                            <option value="@d.Id" selected="@(d.Id == i.DepartamentoId)">@d.Nombre</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-puesto">Puesto</label>
+                                    <select id="@formId-puesto" name="Input.PuestoId" class="form-select" disabled="@off" data-puesto>
+                                        <option value="">Sin puesto</option>
+                                        @foreach (var p in Model.Puestos)
+                                        {
+                                            <option value="@p.Id" data-depto="@p.DepartamentoId" selected="@(p.Id == i.PuestoId)">@p.Nombre</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-ingreso">Fecha de ingreso</label>
+                                    <input id="@formId-ingreso" name="Input.FechaIngreso" value="@i.FechaIngreso?.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-horas">Horas por semana</label>
+                                    <input id="@formId-horas" name="Input.HorasSemana" value="@i.HorasSemana" type="number" min="1" max="80" class="form-control" disabled="@off" placeholder="Ej. 40" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("note") Notas</h2></div>
+                        <div class="gas-card__body">
+                            <textarea name="Input.Notas" class="form-control" rows="3" maxlength="2000" disabled="@off">@i.Notas</textarea>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header">
+                            <div>
+                                <h2>@Iconos.Svg("dollar") Costo de referencia</h2>
+                                <p>Para la rentabilidad de proyectos y productos.</p>
+                            </div>
+                        </div>
+                        <div class="gas-card__body">
+                            @if (Model.VerCosto)
+                            {
+                                var offCosto = !Model.EditarCosto;
+                                <div class="row g-3">
+                                    <div class="col-7">
+                                        <label class="form-label" for="@formId-costo">Costo por hora</label>
+                                        <input id="@formId-costo" name="Input.CostoHora" value="@i.CostoHora?.ToString(CultureInfo.InvariantCulture)" type="number" min="0" step="0.01"
+                                               class="form-control" disabled="@offCosto" />
+                                    </div>
+                                    <div class="col-5">
+                                        <label class="form-label" for="@formId-moneda">Moneda</label>
+                                        <select id="@formId-moneda" name="Input.MonedaCosto" class="form-select" disabled="@offCosto">
+                                            @foreach (var m in GAS.Admin.Pages.Organizacion.PersonaInput.Monedas)
+                                            {
+                                                <option value="@m" selected="@(m == i.MonedaCosto)">@m</option>
+                                            }
+                                        </select>
+                                    </div>
+                                </div>
+                                @if (i.CostoHora is not null && i.HorasSemana is not null)
+                                {
+                                    <div class="gas-badges mt-3">
+                                        <span class="gas-badge gas-badge--violet">≈ @Etiquetas.Dinero(Math.Round(i.CostoHora.Value * i.HorasSemana.Value * 4.33m, 2), i.MonedaCosto) / mes</span>
+                                    </div>
+                                }
+                                @if (offCosto && Model.PuedeGestionar)
+                                {
+                                    <div class="form-text mt-2">Para modificarlo necesitas permiso de gestión en Finanzas.</div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="d-flex align-items-center gap-2 text-muted small">
+                                    @Iconos.Svg("lock") Solo visible con permiso de Finanzas.
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <form method="post" asp-page="/Organizacion/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id" asp-route-vista="@Model.Vista"
+                  data-confirm-title="¿Eliminar a @i.NombreCompleto?"
+                  data-confirm="Se quitará del equipo de forma permanente. Si ya no colabora con GAS, márcala como Inactiva para conservar su historial."
+                  data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Eliminar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">
+                    @if (Model.EsNuevo) { @Iconos.Svg("check") <span>Agregar al equipo</span> } else { @Iconos.Svg("save") <span>Guardar cambios</span> }
+                </button>
+            }
+        </div>
+    </div>
+</div>

@@ -1,0 +1,225 @@
+@model GAS.Admin.Pages.Finanzas.Movimientos.MovimientoModalVm
+@using System.Globalization
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-mov-nuevo" : $"form-mov-{Model.Id}";
+    var i = Model.Input;
+    var ingreso = i.Tipo == TipoMovimiento.Ingreso;
+    var inv = CultureInfo.InvariantCulture;
+    var titulo = Model.EsNuevo ? (ingreso ? "Nuevo ingreso" : "Nuevo egreso") : i.Concepto;
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon @(ingreso ? "" : "gas-modal__icon--warning")">@Iconos.Svg(ingreso ? "arrow-up" : "arrow-down")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@titulo</h2>
+            @if (Model.EsNuevo)
+            {
+                <div class="gas-modal__subtitle">@(ingreso ? "Un cobro esperado o ya recibido." : "Un pago esperado o ya realizado a un proveedor.")</div>
+            }
+            else
+            {
+                <div class="gas-badges mt-2">
+                    <span class="gas-badge @(ingreso ? "gas-badge--success" : "gas-badge--danger")">@Etiquetas.Texto(i.Tipo)</span>
+                    @if (Model.Origen != OrigenMovimiento.Manual) { <span class="gas-badge @Etiquetas.Badge(Model.Origen)">@Etiquetas.Texto(Model.Origen)</span> }
+                    @if (Model.Cotizacion is not null)
+                    {
+                        <a class="gas-badge gas-badge--info gas-badge--btn text-decoration-none" href="@Url.Page("/Comercial/Cotizaciones/Index", new { abrir = Model.CotizacionId })">@Iconos.Svg("note") @Model.Cotizacion</a>
+                    }
+                    <partial name="_Trazabilidad" model="(Model.CreadoUtc, Model.CreadoPor, Model.ModificadoUtc, Model.ModificadoPor)" />
+                </div>
+            }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/Finanzas/Movimientos/Index"
+              asp-page-handler="@(Model.EsNuevo ? "Crear" : "Guardar")" asp-route-id="@Model.Id" data-movimiento>
+            <input type="hidden" name="volver" value="@Model.Volver" />
+            <input type="hidden" name="Input.Tipo" value="@i.Tipo" />
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Movimiento</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-concepto">Concepto</label>
+                                    <input id="@formId-concepto" name="Input.Concepto" value="@i.Concepto" class="form-control" maxlength="200" disabled="@off"
+                                           placeholder="@(ingreso ? "Ej. Anticipo desarrollo app" : "Ej. Hosting anual")" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-cat">Categoría</label>
+                                    <select id="@formId-cat" name="Input.CategoriaId" class="form-select" disabled="@off">
+                                        <option value="">Sin categoría</option>
+                                        @foreach (var c in Model.Categorias.Where(c => c.Extra == i.Tipo.ToString()))
+                                        {
+                                            <option value="@c.Id" selected="@(c.Id == i.CategoriaId)">@c.Nombre</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-linea">Línea de negocio</label>
+                                    <select id="@formId-linea" name="Input.Linea" class="form-select" disabled="@off">
+                                        @foreach (var l in Etiquetas.Valores<LineaNegocio>()) { <option value="@l" selected="@(l == i.Linea)">@Etiquetas.Texto(l)</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-fecha">@(ingreso ? "Fecha esperada de cobro" : "Fecha de vencimiento")</label>
+                                    <input id="@formId-fecha" name="Input.FechaProgramada" value="@i.FechaProgramada.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><div><h2>@Iconos.Svg("dollar") Importe</h2><p>El IVA se reporta aparte.</p></div></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-7">
+                                    <label class="form-label" for="@formId-sub">Subtotal</label>
+                                    <input id="@formId-sub" name="Input.Subtotal" value="@(i.Subtotal > 0 ? i.Subtotal.ToString(inv) : "")" type="number" min="0" step="0.01" class="form-control" disabled="@off" data-mov-subtotal />
+                                </div>
+                                <div class="col-5">
+                                    <label class="form-label" for="@formId-mon">Moneda</label>
+                                    <select id="@formId-mon" name="Input.Moneda" class="form-select" disabled="@off" data-mov-moneda>
+                                        @foreach (var mo in GAS.Admin.Services.Finanzas.ServicioFinanzas.Monedas) { <option value="@mo" selected="@(mo == i.Moneda)">@mo</option> }
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label" for="@formId-iva">IVA</label>
+                                    <select id="@formId-iva" name="Input.TasaIva" class="form-select" disabled="@off" data-mov-iva>
+                                        @foreach (var t in new[] { 16m, 8m, 0m }.Union(new[] { i.TasaIva }))
+                                        {
+                                            <option value="@t.ToString(inv)" selected="@(t == i.TasaIva)">@(t == 0 ? "Sin IVA" : $"{t:0.##}%")</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-6 @(i.Moneda == "MXN" ? "d-none" : "")" data-mov-tc>
+                                    <label class="form-label" for="@formId-tc">Tipo de cambio</label>
+                                    <input id="@formId-tc" name="Input.TipoCambio" value="@((i.TipoCambio ?? Model.TipoCambioSugerido)?.ToString(inv))" type="number" min="0" step="0.0001" class="form-control" disabled="@off" data-mov-tc-input />
+                                </div>
+                                <div class="col-12">
+                                    <dl class="gas-totales__lista">
+                                        <dt>IVA</dt><dd data-mov-out="iva">—</dd>
+                                        <dt class="gas-totales__total">Total</dt><dd class="gas-totales__total" data-mov-out="total">—</dd>
+                                        <dt data-mov-mxn-row class="@(i.Moneda == "MXN" ? "d-none" : "")">Equivalente en pesos</dt>
+                                        <dd data-mov-mxn-row data-mov-out="mxn" class="@(i.Moneda == "MXN" ? "d-none" : "")">—</dd>
+                                    </dl>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><div><h2>@Iconos.Svg("tag") Relación</h2><p>Para saber a qué cliente, producto o trabajo pertenece.</p></div></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-cli">Cliente</label>
+                                    <select id="@formId-cli" name="Input.ClienteId" class="form-select" disabled="@off">
+                                        <option value="">Ninguno</option>
+                                        @foreach (var c in Model.Clientes) { <option value="@c.Id" selected="@(c.Id == i.ClienteId)">@c.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-prod">Producto</label>
+                                    <select id="@formId-prod" name="Input.ProductoId" class="form-select" disabled="@off">
+                                        <option value="">Ninguno</option>
+                                        @foreach (var p in Model.Productos) { <option value="@p.Id" selected="@(p.Id == i.ProductoId)">@p.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-trab">Trabajo</label>
+                                    <select id="@formId-trab" name="Input.TrabajoId" class="form-select" disabled="@off">
+                                        <option value="">Ninguno</option>
+                                        @foreach (var t in Model.Trabajos) { <option value="@t.Id" selected="@(t.Id == i.TrabajoId)">@t.Nombre</option> }
+                                    </select>
+                                    @if (!ingreso) { <div class="form-text">Los egresos ligados a un trabajo cuentan como gasto directo en su rentabilidad.</div> }
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-serv">Servicio externo</label>
+                                    <select id="@formId-serv" name="Input.ServicioExternoId" class="form-select" disabled="@off">
+                                        <option value="">Ninguno</option>
+                                        @foreach (var s in Model.Servicios) { <option value="@s.Id" selected="@(s.Id == i.ServicioExternoId)">@s.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-prov">@(ingreso ? "Pagador (otro)" : "Proveedor (otro)")</label>
+                                    <input id="@formId-prov" name="Input.Proveedor" value="@i.Proveedor" class="form-control" maxlength="150" disabled="@off" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("wallet") @(ingreso ? "Cobro" : "Pago")</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-estado">Estado</label>
+                                    <select id="@formId-estado" name="Input.Estado" class="form-select" disabled="@off" data-mov-estado>
+                                        <option value="@EstadoMovimiento.Esperado" selected="@(i.Estado == EstadoMovimiento.Esperado)">@(ingreso ? "Por cobrar" : "Por pagar")</option>
+                                        <option value="@EstadoMovimiento.Confirmado" selected="@(i.Estado == EstadoMovimiento.Confirmado)">@(ingreso ? "Cobrado" : "Pagado")</option>
+                                        <option value="@EstadoMovimiento.Cancelado" selected="@(i.Estado == EstadoMovimiento.Cancelado)">Cancelado</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 @(i.Estado == EstadoMovimiento.Confirmado ? "" : "d-none")" data-mov-pago>
+                                    <label class="form-label" for="@formId-fpago">Fecha de @(ingreso ? "cobro" : "pago")</label>
+                                    <input id="@formId-fpago" name="Input.FechaPago" value="@i.FechaPago?.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-cta">Cuenta</label>
+                                    <select id="@formId-cta" name="Input.CuentaId" class="form-select" disabled="@off">
+                                        <option value="">Sin cuenta</option>
+                                        @foreach (var c in Model.Cuentas) { <option value="@c.Id" selected="@(c.Id == i.CuentaId)">@c.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-ref">Referencia</label>
+                                    <input id="@formId-ref" name="Input.Referencia" value="@i.Referencia" class="form-control" maxlength="100" disabled="@off" placeholder="Folio, transferencia…" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-12">
+                    <section class="gas-card">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("note") Notas</h2></div>
+                        <div class="gas-card__body">
+                            <textarea name="Input.Notas" class="form-control" rows="2" maxlength="1000" disabled="@off">@i.Notas</textarea>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <form method="post" asp-page="/Finanzas/Movimientos/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id"
+                  data-confirm-title="¿Eliminar este movimiento?"
+                  data-confirm="Se borrará de Finanzas. Si solo ya no aplica, puedes marcarlo como Cancelado para conservar el historial."
+                  data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                <input type="hidden" name="volver" value="@Model.Volver" />
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Eliminar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">@if (Model.EsNuevo) { @Iconos.Svg("check") <span>Registrar</span> } else { @Iconos.Svg("save") <span>Guardar cambios</span> }</button>
+            }
+        </div>
+    </div>
+</div>

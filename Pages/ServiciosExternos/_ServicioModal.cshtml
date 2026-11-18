@@ -1,0 +1,237 @@
+@model GAS.Admin.Pages.ServiciosExternos.ServicioModalVm
+@{
+    var off = !Model.PuedeGestionar;
+    var formId = Model.EsNuevo ? "form-servicio-nuevo" : $"form-servicio-{Model.Id}";
+    var i = Model.Input;
+    var responsable = (Nombre: "Input.ResponsableId", Id: formId + "-resp", Seleccionado: i.ResponsableId, Opciones: Model.Responsables, Deshabilitado: off);
+    var mensual = new ServicioExterno { Costo = i.Costo, Periodicidad = i.Periodicidad, Estado = i.Estado }.CostoMensual;
+    var porProducto = mensual is not null && i.Productos.Count > 0 ? Math.Round(mensual.Value / i.Productos.Count, 2) : (decimal?)null;
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon gas-modal__icon--violet">@Iconos.Svg(Model.EsNuevo ? "plug" : Etiquetas.IconoCategoria(i.Categoria))</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">@(Model.EsNuevo ? "Nuevo servicio externo" : i.Nombre)</h2>
+            @if (Model.EsNuevo)
+            {
+                <div class="gas-modal__subtitle">Proveedor o herramienta que usa Global App Suite.</div>
+            }
+            else
+            {
+                <div class="gas-badges mt-2">
+                    <span class="gas-badge gas-badge--violet">@Etiquetas.Texto(i.Categoria)</span>
+                    <span class="gas-badge @Etiquetas.Badge(i.Estado)">@Etiquetas.Texto(i.Estado)</span>
+                    <partial name="_Trazabilidad" model="(Model.CreadoUtc, Model.CreadoPor, Model.ModificadoUtc, Model.ModificadoPor)" />
+                </div>
+            }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+
+    <div class="modal-body">
+        <form id="@formId" method="post" novalidate asp-page="/ServiciosExternos/Index"
+              asp-page-handler="@(Model.EsNuevo ? "Crear" : "Guardar")" asp-route-id="@Model.Id">
+            <input type="hidden" name="Estado" value="@Model.Filtro" />
+            <input type="hidden" name="Q" value="@Model.Q" />
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("pencil") Datos del servicio</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-5">
+                                    <label class="form-label" for="@formId-nombre">Nombre</label>
+                                    <input id="@formId-nombre" name="Input.Nombre" value="@i.Nombre" class="form-control" maxlength="100" disabled="@off" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label" for="@formId-cat">Categoría</label>
+                                    <select id="@formId-cat" name="Input.Categoria" class="form-select" disabled="@off">
+                                        @foreach (var c in Etiquetas.Valores<CategoriaServicio>())
+                                        {
+                                            <option value="@c" selected="@(c == i.Categoria)">@Etiquetas.Texto(c)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label" for="@formId-estado">Estado</label>
+                                    <select id="@formId-estado" name="Input.Estado" class="form-select" disabled="@off">
+                                        @foreach (var e in Etiquetas.Valores<EstadoServicio>())
+                                        {
+                                            <option value="@e" selected="@(e == i.Estado)">@Etiquetas.Texto(e)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-uso">Uso</label>
+                                    <input id="@formId-uso" name="Input.Descripcion" value="@i.Descripcion" class="form-control" maxlength="500"
+                                           placeholder="Para qué lo usamos" disabled="@off" />
+                                </div>
+                                <div class="col-md-7">
+                                    <label class="form-label" for="@formId-panel">Panel administrativo</label>
+                                    <input id="@formId-panel" name="Input.UrlPanel" value="@i.UrlPanel" class="form-control" placeholder="https://" disabled="@off" />
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label" for="@formId-resp">Responsable de la cuenta</label>
+                                    <partial name="_SelectResponsable" model="responsable" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("dollar") Plan y costo</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-plan">Plan</label>
+                                    <input id="@formId-plan" name="Input.Plan" value="@i.Plan" class="form-control" maxlength="100" placeholder="Free, Pro, Business…" disabled="@off" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-per">Periodicidad</label>
+                                    <select id="@formId-per" name="Input.Periodicidad" class="form-select" disabled="@off">
+                                        @foreach (var p in Etiquetas.Valores<PeriodicidadCobro>())
+                                        {
+                                            <option value="@p" selected="@(p == i.Periodicidad)">@Etiquetas.Texto(p)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-7">
+                                    <label class="form-label" for="@formId-costo">Costo por periodo</label>
+                                    <input id="@formId-costo" name="Input.Costo" value="@i.Costo?.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                           type="number" min="0" step="0.01" class="form-control" disabled="@off" />
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label" for="@formId-moneda">Moneda</label>
+                                    <select id="@formId-moneda" name="Input.Moneda" class="form-select" disabled="@off">
+                                        @foreach (var m in GAS.Admin.Pages.ServiciosExternos.ServicioInput.Monedas)
+                                        {
+                                            <option value="@m" selected="@(m == i.Moneda)">@m</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-ren">Próxima renovación</label>
+                                    <input id="@formId-ren" name="Input.ProximaRenovacion" value="@i.ProximaRenovacion?.ToString("yyyy-MM-dd")" type="date" class="form-control" disabled="@off" />
+                                </div>
+                            </div>
+                            @if (mensual is not null)
+                            {
+                                <div class="gas-badges mt-3">
+                                    <span class="gas-badge gas-badge--info">≈ @Etiquetas.Dinero(mensual, i.Moneda) / mes</span>
+                                    @if (porProducto is not null)
+                                    {
+                                        <span class="gas-badge gas-badge--violet" title="Reparto en partes iguales entre los productos que lo usan">≈ @Etiquetas.Dinero(porProducto, i.Moneda) por producto</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-7">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header">
+                            <div>
+                                <h2>@Iconos.Svg("box") Productos que lo usan</h2>
+                                <p>Su costo se reparte en partes iguales entre los productos marcados.</p>
+                            </div>
+                        </div>
+                        <div class="gas-card__body">
+                            <div class="gas-options" style="grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));">
+                                @foreach (var p in Model.ProductosDisponibles)
+                                {
+                                    <label class="gas-option">
+                                        <input type="checkbox" class="form-check-input" name="Input.Productos" value="@p.Id"
+                                               checked="@i.Productos.Contains(p.Id)" disabled="@off" />
+                                        <span><strong>@p.Nombre</strong><span>@Etiquetas.Texto(p.Estado)</span></span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-lg-5">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("lock") Cuenta y credenciales</h2></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-cuenta">Cuenta asociada</label>
+                                    <input id="@formId-cuenta" name="Input.CuentaAsociada" value="@i.CuentaAsociada" class="form-control" maxlength="200"
+                                           placeholder="Correo u organización de la cuenta" disabled="@off" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-ref">Referencia segura de credenciales</label>
+                                    <input id="@formId-ref" name="Input.ReferenciaCredenciales" value="@i.ReferenciaCredenciales" class="form-control" maxlength="300"
+                                           placeholder="Ej. 1Password › GAS › Stripe" autocomplete="off" disabled="@off" />
+                                    <div class="form-text">Nunca escribas contraseñas ni API keys aquí: solo dónde están guardadas.</div>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-doc">Documentación</label>
+                                    <input id="@formId-doc" name="Input.DocumentacionUrl" value="@i.DocumentacionUrl" class="form-control" placeholder="https://" disabled="@off" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="col-12">
+                    <section class="gas-card">
+                        <div class="gas-card__header"><h2>@Iconos.Svg("note") Notas y dependencias</h2></div>
+                        <div class="gas-card__body">
+                            <textarea name="Input.Notas" class="form-control" rows="2" maxlength="2000" disabled="@off">@i.Notas</textarea>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="modal-footer">
+        @if (!Model.EsNuevo && Model.PuedeGestionar)
+        {
+            <div class="dropup">
+                <button type="button" class="btn btn-gas-outline" data-bs-toggle="dropdown" aria-expanded="false">@Iconos.Svg("lock") Acciones</button>
+                <div class="dropdown-menu">
+                    @if (!string.IsNullOrEmpty(i.UrlPanel))
+                    {
+                        <a class="dropdown-item" href="@i.UrlPanel" target="_blank" rel="noopener">@Iconos.Svg("external") Abrir panel</a>
+                    }
+                    @if (!string.IsNullOrEmpty(i.DocumentacionUrl))
+                    {
+                        <a class="dropdown-item" href="@i.DocumentacionUrl" target="_blank" rel="noopener">@Iconos.Svg("note") Abrir documentación</a>
+                    }
+                    @if (!string.IsNullOrEmpty(i.UrlPanel) || !string.IsNullOrEmpty(i.DocumentacionUrl))
+                    {
+                        <div class="dropdown-divider"></div>
+                    }
+                    <form method="post" asp-page="/ServiciosExternos/Index" asp-page-handler="Eliminar" asp-route-id="@Model.Id"
+                          data-confirm-title="¿Eliminar @i.Nombre?"
+                          data-confirm="Se eliminará del catálogo junto con su relación con productos. Si ya no lo usan, márcalo como Cancelado para conservar el historial."
+                          data-confirm-ok="Eliminar" data-confirm-tone="danger">
+                        <button type="submit" class="dropdown-item text-danger">@Iconos.Svg("trash") Eliminar</button>
+                    </form>
+                </div>
+            </div>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(Model.PuedeGestionar ? "Cancelar" : "Cerrar")</button>
+            @if (Model.PuedeGestionar)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">
+                    @if (Model.EsNuevo)
+                    {
+                        @Iconos.Svg("check") <span>Registrar servicio</span>
+                    }
+                    else
+                    {
+                        @Iconos.Svg("save") <span>Guardar cambios</span>
+                    }
+                </button>
+            }
+        </div>
+    </div>
+</div>

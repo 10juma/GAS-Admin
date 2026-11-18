@@ -1,0 +1,145 @@
+@page
+@model GAS.Admin.Pages.Administracion.Usuarios.IndexModel
+@{
+    ViewData["Title"] = "Usuarios";
+    ViewData["Seccion"] = "Administración";
+    var estado = Model.Estado ?? "todos";
+    if (Model.ModalUsuario is not null || Model.ModalPassword is not null)
+    {
+        ViewData["AbrirModal"] = true;
+    }
+    var filtros = new[]
+    {
+        ("todos", "Todos", Model.Total, "gas-chip--dark"),
+        ("activos", "Activos", Model.Activos, "gas-chip--success"),
+        ("inactivos", "Inactivos", Model.Inactivos, ""),
+        ("bloqueados", "Bloqueados", Model.Bloqueados, Model.Bloqueados > 0 ? "gas-chip--danger" : ""),
+    };
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Usuarios</h1>
+        <p>Usuarios internos de GAS-Admin y sus roles.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <button type="button" class="btn btn-gas"
+                data-modal-url="@Url.Page("Index", "Nuevo", new { estado = Model.Estado, q = Model.Q })">
+            @Iconos.Svg("user-plus") Nuevo usuario
+        </button>
+    }
+</div>
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Filtrar por estado">
+            @foreach (var (valor, texto, conteo, clase) in filtros)
+            {
+                <a asp-page="Index" asp-route-estado="@(valor == "todos" ? null : valor)" asp-route-q="@Model.Q"
+                   class="gas-chip @clase @(estado == valor ? "is-active" : "")" aria-current="@(estado == valor ? "true" : null)">
+                    @texto <span class="gas-chip__count">@conteo</span>
+                </a>
+            }
+        </nav>
+        <form method="get" class="d-flex gap-2">
+            @if (estado != "todos")
+            {
+                <input type="hidden" name="estado" value="@estado" />
+            }
+            <div class="gas-input-icon">
+                @Iconos.Svg("search")
+                <input name="q" value="@Model.Q" class="form-control" placeholder="Buscar por nombre o correo" aria-label="Buscar" style="min-width: 260px;" />
+            </div>
+            <button type="submit" class="btn btn-gas-outline">@Iconos.Svg("filter") Buscar</button>
+        </form>
+    </div>
+
+    @if (Model.Usuarios.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("search") No hay usuarios que coincidan con la búsqueda.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Roles</th>
+                        <th>Estado</th>
+                        <th>Último acceso</th>
+                        <th class="text-end"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in Model.Usuarios)
+                    {
+                        <tr>
+                            <td>
+                                <div class="gas-person">
+                                    <span class="gas-avatar @Avatar.Clase(u.Email) @(u.Activo ? "" : "gas-avatar--muted")">@Avatar.Iniciales(u.Nombre)</span>
+                                    <span class="gas-person__text">
+                                        <span class="gas-person__name">@u.Nombre</span>
+                                        <span class="gas-person__email">@u.Email</span>
+                                    </span>
+                                </div>
+                            </td>
+                            <td><partial name="_RolChips" model="u.Roles" /></td>
+                            <td>
+                                <div class="gas-badges">
+                                    @if (u.Activo)
+                                    {
+                                        <span class="gas-badge gas-badge--success">Activo</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="gas-badge">Inactivo</span>
+                                    }
+                                    @if (u.Bloqueado)
+                                    {
+                                        <span class="gas-badge gas-badge--danger">Bloqueado</span>
+                                    }
+                                    @if (u.DebeCambiarPassword)
+                                    {
+                                        <span class="gas-badge gas-badge--warning">Contraseña temporal</span>
+                                    }
+                                </div>
+                            </td>
+                            <td title="@Fechas.Formato(u.UltimoAccesoUtc)">
+                                <span class="gas-badge gas-badge--plain">@Iconos.Svg("clock") @Fechas.Relativo(u.UltimoAccesoUtc)</span>
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-gas-outline"
+                                        data-modal-url="@Url.Page("Index", "Editar", new { id = u.Id, estado = Model.Estado, q = Model.Q })">
+                                    @if (Model.PuedeGestionar)
+                                    {
+                                        @Iconos.Svg("pencil") <span>Editar</span>
+                                    }
+                                    else
+                                    {
+                                        @Iconos.Svg("eye") <span>Ver</span>
+                                    }
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="gas-pager">
+            <span>Mostrando @Model.Usuarios.Count de @Model.Total usuarios</span>
+        </div>
+    }
+</div>
+
+@section Modal {
+    @if (Model.ModalUsuario is not null)
+    {
+        <partial name="_UsuarioModal" model="Model.ModalUsuario" />
+    }
+    else if (Model.ModalPassword is not null)
+    {
+        <partial name="_PasswordModal" model="Model.ModalPassword" />
+    }
+}

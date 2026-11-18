@@ -1,0 +1,232 @@
+@page
+@model GAS.Admin.Pages.Finanzas.Movimientos.IndexModel
+@{
+    ViewData["Title"] = "Movimientos";
+    ViewData["Seccion"] = "Finanzas";
+    if (Model.Modal is not null || Model.ModalConfirmar is not null) ViewData["AbrirModal"] = true;
+    var vista = Model.Vista ?? "pendientes";
+    var volver = Model.VolverActual;
+    Dictionary<string, string> Ruta(string? v) => new Dictionary<string, string?> { ["vista"] = v, ["mes"] = Model.Mes, ["buscar"] = Model.Buscar, ["trabajo"] = Model.Trabajo?.ToString() }
+        .Where(x => !string.IsNullOrEmpty(x.Value)).ToDictionary(x => x.Key, x => x.Value!);
+    var chips = new (string Clave, string Texto, string Tono)[]
+    {
+        ("pendientes", "Pendientes", "gas-chip--warning"),
+        ("porcobrar", "Por cobrar", "gas-chip--success"),
+        ("porpagar", "Por pagar", "gas-chip--danger"),
+        ("vencidos", "Vencidos", "gas-chip--danger"),
+        ("confirmados", "Cobrados y pagados", "gas-chip--info"),
+        ("cancelados", "Cancelados", ""),
+        ("todos", "Todos", "gas-chip--dark"),
+    };
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Movimientos</h1>
+        <p>Cobros y pagos: lo esperado, lo confirmado y lo vencido. Montos en pesos; cada movimiento guarda su moneda original.</p>
+    </div>
+    @if (Model.PuedeGestionar)
+    {
+        <div class="gas-page-header__actions">
+            <button type="button" class="btn btn-gas-outline" data-modal-url="@Url.Page("Index", "Nuevo", new { tipo = TipoMovimiento.Egreso, trabajoId = Model.Trabajo, volver })">@Iconos.Svg("arrow-down") Nuevo egreso</button>
+            <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo", new { tipo = TipoMovimiento.Ingreso, trabajoId = Model.Trabajo, volver })">@Iconos.Svg("arrow-up") Nuevo ingreso</button>
+        </div>
+    }
+</div>
+
+@if (Model.Renovaciones.Count > 0)
+{
+    <div class="gas-callout">
+        <span class="gas-stat__icon">@Iconos.Svg("refresh")</span>
+        <div class="gas-callout__text">
+            <strong>@(Model.Renovaciones.Count == 1 ? "1 renovación próxima sin cargo esperado" : $"{Model.Renovaciones.Count} renovaciones próximas sin cargo esperado")</strong>
+            @string.Join(" · ", Model.Renovaciones.Take(4).Select(r => $"{r.Nombre} ({r.Fecha:dd/MM})"))@(Model.Renovaciones.Count > 4 ? " · …" : "")
+        </div>
+        <form method="post" asp-page-handler="Renovaciones">
+            <input type="hidden" name="volver" value="@volver" />
+            <button type="submit" class="btn btn-sm btn-gas">@Iconos.Svg("plus") Registrar cargos</button>
+        </form>
+    </div>
+}
+
+<div class="gas-grid gas-grid--4 mb-4">
+    <div class="gas-card gas-stat gas-stat--success">
+        <span class="gas-stat__icon">@Iconos.Svg("arrow-up")</span>
+        <div>
+            <div class="gas-stat__label">Por cobrar</div>
+            <div class="gas-stat__value gas-stat__value--money">@Etiquetas.Dinero(Model.PorCobrar)</div>
+            <div class="gas-stat__hint">@(Model.VencidoCobrar > 0 ? $"{Etiquetas.Dinero(Model.VencidoCobrar)} vencido" : "nada vencido") · con IVA</div>
+        </div>
+    </div>
+    <div class="gas-card gas-stat @(Model.VencidoPagar > 0 ? "gas-stat--danger" : "gas-stat--warning")">
+        <span class="gas-stat__icon">@Iconos.Svg("arrow-down")</span>
+        <div>
+            <div class="gas-stat__label">Por pagar</div>
+            <div class="gas-stat__value gas-stat__value--money">@Etiquetas.Dinero(Model.PorPagar)</div>
+            <div class="gas-stat__hint">@(Model.VencidoPagar > 0 ? $"{Etiquetas.Dinero(Model.VencidoPagar)} vencido" : "nada vencido") · con IVA</div>
+        </div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--info">
+        <span class="gas-stat__icon">@Iconos.Svg("check")</span>
+        <div>
+            <div class="gas-stat__label">Cobrado este mes</div>
+            <div class="gas-stat__value gas-stat__value--money">@Etiquetas.Dinero(Model.CobradoMes)</div>
+            <div class="gas-stat__hint">sin IVA</div>
+        </div>
+    </div>
+    <div class="gas-card gas-stat gas-stat--violet">
+        <span class="gas-stat__icon">@Iconos.Svg("card")</span>
+        <div>
+            <div class="gas-stat__label">Pagado este mes</div>
+            <div class="gas-stat__value gas-stat__value--money">@Etiquetas.Dinero(Model.PagadoMes)</div>
+            <div class="gas-stat__hint">sin IVA</div>
+        </div>
+    </div>
+</div>
+
+@if (Model.SinTipoCambio > 0)
+{
+    <div class="gas-callout">
+        <span class="gas-stat__icon">@Iconos.Svg("alert")</span>
+        <div class="gas-callout__text">
+            <strong>@Model.SinTipoCambio movimiento(s) en dólares sin tipo de cambio</strong>
+            Su equivalente en pesos aparece en cero y no suma en los reportes. Registra el tipo de cambio y aplícalo desde Configuración › Tipos de cambio.
+        </div>
+        <a asp-page="/Finanzas/Configuracion/Index" asp-route-vista="tipos" class="btn btn-sm btn-gas-outline">@Iconos.Svg("arrow-right") Tipos de cambio</a>
+    </div>
+}
+
+<div class="gas-card">
+    <div class="gas-toolbar">
+        <nav class="gas-chips" aria-label="Vista">
+            @foreach (var (clave, texto, tono) in chips)
+            {
+                <a asp-page="Index" asp-all-route-data="@Ruta(clave == "pendientes" ? null : clave)"
+                   class="gas-chip @tono @(vista == clave ? "is-active" : "")">@texto <span class="gas-chip__count">@Model.Conteos.GetValueOrDefault(clave)</span></a>
+            }
+        </nav>
+        <form method="get" class="gas-filters">
+            <input type="hidden" name="vista" value="@Model.Vista" />
+            @if (Model.Trabajo is not null) { <input type="hidden" name="trabajo" value="@Model.Trabajo" /> }
+            <input type="month" name="mes" value="@Model.Mes" class="form-control form-control-sm" aria-label="Mes" style="max-width: 170px;" onchange="this.form.requestSubmit()" />
+            <div class="gas-input-icon">
+                @Iconos.Svg("search")
+                <input type="search" name="buscar" value="@Model.Buscar" class="form-control form-control-sm" placeholder="Concepto, cliente, proveedor…" aria-label="Buscar" />
+            </div>
+        </form>
+    </div>
+
+    @if (Model.TrabajoNombre is not null)
+    {
+        <div class="px-3 pb-2">
+            <span class="gas-badge gas-badge--info">@Iconos.Svg("layers") @Model.TrabajoNombre</span>
+            <a asp-page="Index" asp-route-vista="@Model.Vista" class="small ms-2">Quitar filtro</a>
+        </div>
+    }
+
+    @if (Model.Movimientos.Count == 0)
+    {
+        <div class="gas-empty">
+            @Iconos.Svg("dollar") No hay movimientos en esta vista.
+            <span class="small">Los cobros se generan al aprobar cotizaciones y los pagos con las renovaciones de servicios externos.</span>
+        </div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Concepto</th>
+                        <th>Cliente / proveedor</th>
+                        <th class="text-end">Subtotal</th>
+                        <th class="text-end">Total</th>
+                        <th>Estado</th>
+                        <th class="text-end"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Model.Movimientos)
+                    {
+                        var m = f.M;
+                        var vencido = m.Vencido(Model.Hoy);
+                        var estado = m.Estado switch
+                        {
+                            EstadoMovimiento.Esperado => vencido ? (m.EsIngreso ? "Cobro vencido" : "Pago vencido") : (m.EsIngreso ? "Por cobrar" : "Por pagar"),
+                            EstadoMovimiento.Confirmado => m.EsIngreso ? "Cobrado" : "Pagado",
+                            _ => "Cancelado"
+                        };
+                        var tono = m.Estado switch
+                        {
+                            EstadoMovimiento.Esperado => vencido ? "gas-badge--danger" : "gas-badge--warning",
+                            EstadoMovimiento.Confirmado => "gas-badge--success",
+                            _ => "gas-badge--plain"
+                        };
+                        <tr style="@(m.Estado == EstadoMovimiento.Cancelado ? "opacity: .6;" : "")">
+                            <td class="text-nowrap">
+                                <div>@((m.FechaPago ?? m.FechaProgramada).ToString("dd/MM/yyyy"))</div>
+                                @if (m.FechaPago is not null && m.FechaPago != m.FechaProgramada)
+                                {
+                                    <span class="small text-muted">prog. @m.FechaProgramada.ToString("dd/MM")</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="gas-person__text">
+                                    <span class="gas-person__name">
+                                        <span class="@(m.EsIngreso ? "text-success" : "text-danger")" title="@(m.EsIngreso ? "Ingreso" : "Egreso")">@Iconos.Svg(m.EsIngreso ? "arrow-up" : "arrow-down")</span>
+                                        @m.Concepto
+                                    </span>
+                                    <span class="gas-badges mt-1">
+                                        @if (f.Categoria is not null) { <span class="gas-badge gas-badge--plain">@f.Categoria</span> }
+                                        <span class="gas-badge @Etiquetas.Badge(m.Linea)">@Etiquetas.Texto(m.Linea)</span>
+                                        @if (m.Origen != OrigenMovimiento.Manual) { <span class="gas-badge @Etiquetas.Badge(m.Origen)">@Etiquetas.Texto(m.Origen)</span> }
+                                        @if (f.TrabajoFolio is not null) { <a asp-page="/Proyectos/Detalle/Index" asp-route-id="@m.TrabajoId" class="gas-badge gas-badge--info gas-badge--btn text-decoration-none">@Iconos.Svg("layers") @f.TrabajoFolio</a> }
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                @(f.Relacion ?? "—")
+                                @if (f.Cuenta is not null) { <div class="small text-muted">@Iconos.Svg("card") @f.Cuenta</div> }
+                            </td>
+                            <td class="text-end text-nowrap" style="font-variant-numeric: tabular-nums;">
+                                @Etiquetas.Dinero(m.Subtotal, m.Moneda)
+                                @if (m.Moneda != "MXN")
+                                {
+                                    <div class="small @(m.TipoCambio <= 0 ? "text-danger" : "text-muted")">@(m.TipoCambio <= 0 ? "sin tipo de cambio" : $"≈ {Etiquetas.Dinero(m.SubtotalMxn)}")</div>
+                                }
+                            </td>
+                            <td class="text-end text-nowrap fw-semibold" style="font-variant-numeric: tabular-nums;">
+                                @Etiquetas.Dinero(m.Total, m.Moneda)
+                                @if (m.Iva > 0) { <div class="small text-muted fw-normal">IVA @Etiquetas.Dinero(m.Iva, m.Moneda)</div> }
+                            </td>
+                            <td><span class="gas-badge @tono">@estado</span></td>
+                            <td class="text-end text-nowrap">
+                                @if (Model.PuedeGestionar && m.Pendiente)
+                                {
+                                    <button type="button" class="btn btn-sm btn-gas" data-modal-url="@Url.Page("Index", "Confirmar", new { id = m.Id, volver })">@Iconos.Svg("check") @(m.EsIngreso ? "Cobrar" : "Pagar")</button>
+                                }
+                                <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = m.Id, volver })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Editar" : "Ver")</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.HayMas)
+        {
+            <div class="gas-pager">Se muestran los primeros 300 movimientos. Usa el mes o la búsqueda para acotar.</div>
+        }
+    }
+</div>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_MovimientoModal" model="Model.Modal" />
+    }
+    else if (Model.ModalConfirmar is not null)
+    {
+        <partial name="_ConfirmarModal" model="Model.ModalConfirmar" />
+    }
+}
