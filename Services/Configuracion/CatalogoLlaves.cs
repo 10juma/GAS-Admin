@@ -70,7 +70,7 @@ public static partial class CatalogoLlaves
     public static GrupoLlaves Producto(string clave, string producto) => new($"producto:{clave}", $"Secreto compartido · {producto}", "key",
         "Firma las llamadas entre GAS-Admin y el super-admin del producto (API GAS v1).",
         [new($"Productos:Conexiones:{clave}:Secreto", "Secreto compartido", true, null,
-            "Genera uno nuevo, cópialo en el producto (variable GAS_SECRETO) y guarda aquí el mismo valor.",
+            "Genera uno nuevo, guárdalo aquí; el producto lo recibe como variable Gas__Secreto (el despliegue automático la agrega sola).",
             v => v.Length >= 32 ? null : "Usa un secreto de al menos 32 caracteres (el botón Generar crea uno seguro).", Generable: true)],
         "Al reemplazar el secreto, actualízalo también en el producto o las llamadas fallarán.");
 

@@ -113,7 +113,7 @@ ven solo sus últimos 4 caracteres), entran en uso **sin reiniciar** y cada camb
 | **Organización › Configuración** | Resend: API key y remitente. Soporte: correo de respuesta (Reply-To) y secreto del webhook de correo entrante. Dirección pública de GAS-Admin (`https://…`). Incluye vista previa de los correos y "Enviarme un correo de prueba". |
 | **Finanzas › Configuración › Stripe** | API key **restringida** de solo lectura por producto (Customers, Subscriptions, Invoices, Charges, Balance). |
 | **Infraestructura › Integraciones** | UptimeRobot (Read-Only API Key), GitHub (token fine-grained de solo lectura), Sentry (auth token y organización). |
-| **Productos › Conexiones** | Secreto compartido de cada producto (se genera en el navegador; va también en el producto como `GAS_SECRETO`). |
+| **Productos › Conexiones** | Secreto compartido de cada producto (se genera en el navegador; el producto lo recibe como `Gas__Secreto`; el despliegue automático lo agrega solo). |
 | **Infraestructura › Servidores** y **Ambientes › Automatizar** | Dirección y llave SSH de cada servidor (la contraseña de root no se guarda) y variables de cada contenedor. |
 
 El catálogo de qué se puede capturar está en `Services/Configuracion/CatalogoLlaves.cs`. Si una llave también existe

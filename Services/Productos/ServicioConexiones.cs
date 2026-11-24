@@ -229,6 +229,7 @@ public class ServicioConexiones
         }
         await LigarClientesAsync(c, existentes.Values, ct);
         c.CuentasSincronizadasUtc = inicio;
+        MarcarSuperAdmin(c);
         await _db.SaveChangesAsync(ct);
 
         var dependenciasMal = c.DependenciasJson is null ? 0
@@ -251,6 +252,17 @@ public class ServicioConexiones
         cuenta.Usuarios = (int)j.Entero("usuarios");
         cuenta.StripeCustomerId = Recortar(j.Texto("stripeCustomerId"), 100);
         cuenta.ActualizadoUtc = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Si la conexión sincronizó bien y tiene URL de super-admin (acceso firmado), el producto pasa a
+    /// "Con super-admin" en el catálogo y toma esa URL si no tenía una. Así no se queda "Por revisar".
+    /// </summary>
+    private static void MarcarSuperAdmin(ConexionProducto c)
+    {
+        if (string.IsNullOrWhiteSpace(c.UrlSuperAdmin) || c.Producto is null) return;
+        if (c.Producto.SuperAdmin != EstadoSuperAdmin.Existe) c.Producto.SuperAdmin = EstadoSuperAdmin.Existe;
+        if (string.IsNullOrWhiteSpace(c.Producto.SuperAdminUrl)) c.Producto.SuperAdminUrl = c.UrlSuperAdmin.Trim();
     }
 
     /// <summary>Si la cuenta tiene cliente de Stripe y ese suscriptor ya está ligado a un Cliente de GAS, se hereda.</summary>

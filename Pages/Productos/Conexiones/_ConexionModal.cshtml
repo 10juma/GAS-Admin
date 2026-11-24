@@ -55,7 +55,7 @@
                 <div class="col-12">
                     <section class="gas-card">
                         <div class="gas-card__header">
-                            <div><h2>@Iconos.Svg("key") Secreto compartido</h2><p>El mismo valor va en GAS-Admin y en el producto (variable GAS_SECRETO). En GAS-Admin se guarda cifrado.</p></div>
+                            <div><h2>@Iconos.Svg("key") Secreto compartido</h2><p>El mismo valor va en GAS-Admin y en el producto (variable <code>Gas__Secreto</code>; el despliegue automático la agrega sola). En GAS-Admin se guarda cifrado.</p></div>
                             @if (!Model.EsNuevo)
                             {
                                 <span class="gas-badge @(Model.SecretoConfigurado ? "gas-badge--success" : "gas-badge--danger")">@Iconos.Svg(Model.SecretoConfigurado ? "check" : "x") @(Model.SecretoConfigurado ? "Configurado" : "Falta")</span>
