@@ -1,0 +1,67 @@
+@page "{id:int}"
+@model GAS.Admin.Pages.Infraestructura.Despliegues.EjecucionModel
+@{
+    var e = Model.Ejecucion;
+    ViewData["Title"] = $"Despliegue #{e.Id}";
+    ViewData["Seccion"] = "Infraestructura";
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Despliegue #@e.Id</h1>
+        <p>@e.Producto.Nombre · @string.Join(", ", Model.Ambientes) · en @e.Servidor.Nombre · por @e.IniciadoPor, @Fechas.Formato(e.CreadoUtc)</p>
+    </div>
+    <a asp-page="/Infraestructura/Servidores/Index" class="btn btn-gas-outline">@Iconos.Svg("arrow-left") Despliegues</a>
+</div>
+
+<section class="gas-card mb-3">
+    <div class="gas-card__body">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <span id="desp-estado" class="gas-badge @Etiquetas.Badge(e.Estado)">@Etiquetas.Texto(e.Estado)</span>
+            <span>@Iconos.Svg("git") <strong>@e.Referencia</strong> <span id="desp-commit" class="text-muted">@(e.Commit is null ? "" : $"{e.Commit[..7]} · {e.MensajeCommit}")</span></span>
+            <span id="desp-duracion" class="small text-muted ms-auto">@(e.InicioUtc is null ? "" : GAS.Admin.Pages.Infraestructura.Despliegues.EjecucionModel.Duracion((e.FinUtc ?? DateTime.UtcNow) - e.InicioUtc.Value))</span>
+        </div>
+        <div id="desp-resumen" class="small mt-2 @(e.Resumen is null ? "d-none" : "")">@e.Resumen</div>
+    </div>
+</section>
+
+<section class="gas-card">
+    <div class="gas-card__header">
+        <div><h2>@Iconos.Svg("note") Bitácora</h2><p id="desp-vivo">@(e.Terminada ? "Terminada." : "Se actualiza sola mientras corre; puedes cerrar esta página, el despliegue sigue.")</p></div>
+        <label class="small text-muted d-flex align-items-center gap-2"><input type="checkbox" id="desp-seguir" checked /> Seguir el final</label>
+    </div>
+    <pre id="desp-bitacora" class="m-0 p-3 small" style="background:#0f172a;color:#e2e8f0;white-space:pre-wrap;word-break:break-word;max-height:70vh;overflow:auto;border-radius:0 0 12px 12px;">@(e.Bitacora.Length == 0 ? "En cola…" : e.Bitacora)</pre>
+</section>
+
+@section Scripts {
+<script>
+(() => {
+    const terminada = @(e.Terminada ? "true" : "false");
+    const pre = document.getElementById("desp-bitacora");
+    const seguir = document.getElementById("desp-seguir");
+    const alFinal = () => { if (seguir.checked) pre.scrollTop = pre.scrollHeight; };
+    alFinal();
+    if (terminada) return;
+    const url = "@Html.Raw(Url.Page("Ejecucion", "Estado", new { id = e.Id }))";
+    async function actualizar() {
+        try {
+            const r = await fetch(url, { headers: { "Accept": "application/json" } });
+            if (!r.ok) throw new Error();
+            const d = await r.json();
+            if (d.bitacora) pre.textContent = d.bitacora;
+            const badge = document.getElementById("desp-estado");
+            badge.className = "gas-badge " + d.badge;
+            badge.textContent = d.texto;
+            if (d.commit) document.getElementById("desp-commit").textContent = d.commit;
+            if (d.duracion) document.getElementById("desp-duracion").textContent = d.duracion;
+            const res = document.getElementById("desp-resumen");
+            if (d.resumen) { res.textContent = d.resumen; res.classList.remove("d-none"); }
+            alFinal();
+            if (d.terminada) { document.getElementById("desp-vivo").textContent = "Terminada."; return; }
+        } catch { /* se reintenta */ }
+        setTimeout(actualizar, 2000);
+    }
+    setTimeout(actualizar, 1500);
+})();
+</script>
+}

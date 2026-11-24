@@ -61,7 +61,7 @@ El menú lateral se agrupa por secciones (acordeón, contraíble a solo íconos)
 | **Comercial** | Clientes, Oportunidades, Cotizaciones, Catálogo comercial | CRM ligero: Kanban de oportunidades, cotizaciones con folio `COT-AAAA-NNNN`, versiones, PDF, envío por correo; al aprobarse crean el trabajo en Proyectos. |
 | **Proyectos** | Trabajos, Tablero de tareas, Registro de horas | Trabajos (`TRB-AAAA-NNNN`) con entregables, ciclos mensuales, rentabilidad (horas × costo/hora), archivos, tareas en Kanban y horas por semana. |
 | **Finanzas** | Resumen, Suscripciones SaaS, Movimientos, Configuración | Cobros y pagos (con IVA y tipo de cambio), cuentas, categorías, Stripe (MRR/ARR, churn, pagos fallidos; cada factura pagada entra como ingreso y su comisión como egreso). |
-| **Infraestructura** | Panel, Ambientes, Repositorios, Dominios, Servicios externos, Incidentes (`INC-AAAA-NNNN`), Credenciales, Errores, Integraciones | Estado técnico por producto, despliegues, vencimientos (dominios, SSL, credenciales, servicios), incidentes automáticos desde UptimeRobot, releases de GitHub como despliegues, errores de Sentry. |
+| **Infraestructura** | Panel, Ambientes, Servidores, Repositorios, Dominios, Servicios externos, Incidentes (`INC-AAAA-NNNN`), Credenciales, Errores, Integraciones | Estado técnico por producto, **despliegue automático** a servidores por SSH (compila en el servidor, respalda, migra, verifica y revierte solo; ver [docs/despliegue-automatico.md](docs/despliegue-automatico.md)), vencimientos (dominios, SSL, credenciales, servicios), incidentes automáticos desde UptimeRobot, releases de GitHub como despliegues, errores de Sentry. |
 | **Atención al cliente** | Tickets (`TKT-AAAA-NNNN`), Base de conocimientos | Bandeja con SLA, respuestas por correo, notas internas, correo entrante que crea o continúa tickets, tickets desde los productos, artículos reutilizables. |
 | **Organización** | Equipo, Departamentos y puestos, Datos de la empresa, **Configuración** | Personas (socios, empleados, externos) con capacidad y costo/hora; datos formales para PDF y correos; configuración y llaves de GAS-Admin (solo Admin). |
 | **Administración** | Usuarios, Roles y permisos, Auditoría | Usuarios internos, permisos por módulo, bitácora completa de accesos y cambios. |
@@ -114,6 +114,7 @@ ven solo sus últimos 4 caracteres), entran en uso **sin reiniciar** y cada camb
 | **Finanzas › Configuración › Stripe** | API key **restringida** de solo lectura por producto (Customers, Subscriptions, Invoices, Charges, Balance). |
 | **Infraestructura › Integraciones** | UptimeRobot (Read-Only API Key), GitHub (token fine-grained de solo lectura), Sentry (auth token y organización). |
 | **Productos › Conexiones** | Secreto compartido de cada producto (se genera en el navegador; va también en el producto como `GAS_SECRETO`). |
+| **Infraestructura › Servidores** y **Ambientes › Automatizar** | Dirección y llave SSH de cada servidor (la contraseña de root no se guarda) y variables de cada contenedor. |
 
 El catálogo de qué se puede capturar está en `Services/Configuracion/CatalogoLlaves.cs`. Si una llave también existe
 como variable de entorno, gana la capturada en pantalla.
@@ -206,6 +207,7 @@ Corren dentro de la aplicación (`BackgroundService`); cada uno evita ejecucione
 | `SincronizadorIntegraciones` | 15 min | Monitores de UptimeRobot (abre y resuelve incidentes), repos y releases de GitHub, errores de Sentry. |
 | `SincronizadorConexiones` | 15 min | Estado, métricas y cuentas de cada producto conectado (API GAS v1). |
 | `CierreMensualAutomatico` | 6 h | Cierra el mes anterior en Dirección si no existe. |
+| `ColaDespliegues` | Al pedirlo | Ejecuta los despliegues automáticos de uno en uno; si GAS-Admin se reinicia a la mitad, quedan como *Interrumpido*. |
 
 Cada pantalla tiene además su botón **Sincronizar ahora**.
 
@@ -282,3 +284,4 @@ spinners y protección contra doble clic. Los títulos de página toman su ícon
 - [docs/publicacion.md](docs/publicacion.md) — lista de verificación para producción.
 - [docs/api-gas-v1.md](docs/api-gas-v1.md) — contrato que cada producto implementa (estado, métricas, cuentas, acciones, SSO firmado, tickets).
 - [docs/soporte-correo-entrante.md](docs/soporte-correo-entrante.md) — configuración del correo entrante con Resend.
+- [docs/despliegue-automatico.md](docs/despliegue-automatico.md) — despliegue desde GAS-Admin por SSH: seguridad, puesta en marcha y valores de Pitazo.

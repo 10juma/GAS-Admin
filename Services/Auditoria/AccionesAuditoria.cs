@@ -40,6 +40,9 @@ public static class AccionesAuditoria
     public const string AccionEnProducto = "AccionEnProducto";
     public const string AccesoSuperAdmin = "AccesoSuperAdmin";
     public const string LlaveActualizada = "LlaveActualizada";
+    public const string ServidorPreparado = "ServidorPreparado";
+    public const string DespliegueIniciado = "DespliegueIniciado";
+    public const string DespliegueTerminado = "DespliegueTerminado";
 
     public static readonly IReadOnlyList<AccionInfo> Catalogo =
     [
@@ -71,6 +74,9 @@ public static class AccionesAuditoria
         new(AccionEnProducto, "Acción en producto", TonoAccion.Advertencia, CategoriaAccion.Datos),
         new(AccesoSuperAdmin, "Acceso a super-admin", TonoAccion.Neutro, CategoriaAccion.Accesos),
         new(LlaveActualizada, "Llave de configuración", TonoAccion.Advertencia, CategoriaAccion.Accesos),
+        new(ServidorPreparado, "Servidor preparado para despliegues", TonoAccion.Advertencia, CategoriaAccion.Accesos),
+        new(DespliegueIniciado, "Despliegue iniciado", TonoAccion.Advertencia, CategoriaAccion.Datos),
+        new(DespliegueTerminado, "Despliegue terminado", TonoAccion.Neutro, CategoriaAccion.Datos),
     ];
 
     public static readonly IReadOnlyList<(CategoriaAccion Categoria, string Nombre)> Categorias =

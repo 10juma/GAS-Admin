@@ -1,0 +1,67 @@
+@model GAS.Admin.Pages.Infraestructura.Servidores.PrepararModalVm
+@{
+    var formId = $"form-prep-{Model.Id}";
+    var r = Model.Resultado;
+}
+<div data-size="lg" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon gas-modal__icon--violet">@Iconos.Svg("key")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">Preparar @Model.Nombre</h2>
+            <div class="gas-modal__subtitle">@(Model.Host ?? "Sin dirección")</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        @if (r is not null)
+        {
+            <div class="gas-callout @(r.Ok ? "gas-callout--success" : "")">
+                <span class="gas-icon">@Iconos.Svg(r.Ok ? "check" : "alert")</span>
+                <div class="gas-callout__text"><strong>@(r.Ok ? "Listo" : "No se pudo preparar")</strong>@r.Mensaje</div>
+            </div>
+            @if (r.Pasos.Count > 0)
+            {
+                <pre class="small bg-light border rounded p-3 mb-3" style="white-space: pre-wrap; max-height: 260px; overflow: auto;">@string.Join("\n", r.Pasos)</pre>
+            }
+        }
+        @if (r is null || !r.Ok)
+        {
+            <section class="gas-card mb-3">
+                <div class="gas-card__body small">
+                    <p class="mb-2"><strong>Qué hace:</strong> entra una sola vez con la cuenta de administración y:</p>
+                    <ol class="mb-2 ps-3">
+                        <li>Crea el usuario <code>gasdeploy</code> y lo agrega al grupo <code>docker</code>.</li>
+                        <li>Le instala una llave SSH generada por GAS-Admin (si ya había una, la reemplaza).</li>
+                        <li>Comprueba que ya entra con esa llave y anota la huella del servidor.</li>
+                    </ol>
+                    <p class="mb-0 text-muted">La contraseña <strong>no se guarda</strong>: se usa en esta petición y se descarta. Desde entonces GAS-Admin entra solo con su llave (cifrada) y se niega a conectarse si la huella del servidor cambia. Ojo: quien puede usar Docker en un servidor tiene en la práctica poder de administrador ahí; por eso esta función es solo para Admin.</p>
+                </div>
+            </section>
+            <form id="@formId" method="post" novalidate asp-page="/Infraestructura/Servidores/Index" asp-page-handler="Preparar" asp-route-id="@Model.Id" autocomplete="off">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label" for="@formId-usr">Usuario</label>
+                        <input id="@formId-usr" name="usuario" value="root" class="form-control" maxlength="50" autocomplete="off" />
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label" for="@formId-pass">Contraseña</label>
+                        <input id="@formId-pass" name="contrasena" type="password" class="form-control" maxlength="200" autocomplete="new-password" />
+                    </div>
+                </div>
+                @if (Model.YaPreparado)
+                {
+                    <p class="small text-muted mt-3 mb-0">Este servidor ya estaba preparado: volver a hacerlo cambia la llave de GAS-Admin (la anterior deja de servir).</p>
+                }
+            </form>
+        }
+    </div>
+    <div class="modal-footer">
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") @(r?.Ok == true ? "Cerrar" : "Cancelar")</button>
+            @if (r is null || !r.Ok)
+            {
+                <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg("key") Preparar servidor</button>
+            }
+        </div>
+    </div>
+</div>

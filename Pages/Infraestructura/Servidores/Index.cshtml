@@ -1,0 +1,136 @@
+@page
+@model GAS.Admin.Pages.Infraestructura.Servidores.IndexModel
+@{
+    ViewData["Title"] = "Servidores";
+    ViewData["Seccion"] = "Infraestructura";
+    if (Model.Modal is not null || Model.ModalPreparar is not null) ViewData["AbrirModal"] = true;
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Servidores</h1>
+        <p>Servidores donde GAS-Admin despliega por SSH. La dirección y la llave van cifradas; la contraseña de root se usa una sola vez al preparar y no se guarda.</p>
+    </div>
+    @if (Model.EsAdmin)
+    {
+        <button type="button" class="btn btn-gas" data-modal-url="@Url.Page("Index", "Nuevo")">@Iconos.Svg("plus") Nuevo servidor</button>
+    }
+</div>
+
+@if (!Model.EsAdmin)
+{
+    <div class="gas-callout">
+        <span class="gas-icon">@Iconos.Svg("lock")</span>
+        <div class="gas-callout__text"><strong>Solo lectura</strong>Registrar, preparar servidores y desplegar es exclusivo del rol Admin.</div>
+    </div>
+}
+
+<section class="gas-card mb-4">
+    <div class="gas-card__header">
+        <div><h2>@Iconos.Svg("server") Servidores</h2><p>@Model.Servidores.Count servidor(es)</p></div>
+    </div>
+    @if (Model.Servidores.Count == 0)
+    {
+        <div class="gas-empty">
+            @Iconos.Svg("server") Aún no hay servidores.
+            <span class="small">Registra tu VPS con su IP y luego usa Preparar con la contraseña de root.</span>
+        </div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Servidor</th><th>Estado</th><th>Sistema</th><th>Huella</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var f in Model.Servidores)
+                    {
+                        var s = f.Servidor;
+                        <tr>
+                            <td>
+                                <div class="gas-person__text">
+                                    <span class="gas-person__name">@s.Nombre</span>
+                                    <span class="small text-muted">@(Model.EsAdmin ? $"{s.Usuario}@{f.Host ?? "—"}:{s.Puerto}" : "Dirección visible solo para Admin") · @f.Ambientes ambiente(s)</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="gas-badge @Etiquetas.Badge(s.Estado)">@Etiquetas.Texto(s.Estado)</span>
+                                @if (s.UltimaConexionUtc is not null) { <div class="small text-muted mt-1">Conectó @Fechas.Relativo(s.UltimaConexionUtc)</div> }
+                                @if (s.UltimoError is not null && s.Estado != EstadoServidor.Listo) { <div class="small text-danger mt-1">@s.UltimoError</div> }
+                            </td>
+                            <td class="small">@(s.Sistema ?? "—")</td>
+                            <td class="small text-muted text-break" style="max-width: 220px;">@(s.HuellaHost ?? "—")</td>
+                            <td class="text-end text-nowrap">
+                                @if (Model.EsAdmin)
+                                {
+                                    @if (s.Estado != EstadoServidor.SinPreparar)
+                                    {
+                                        <form method="post" asp-page-handler="Probar" asp-route-id="@s.Id" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-gas-outline">@Iconos.Svg("activity") Probar</button>
+                                        </form>
+                                    }
+                                    <button type="button" class="btn btn-sm @(s.Estado == EstadoServidor.SinPreparar ? "btn-gas" : "btn-gas-outline")" data-modal-url="@Url.Page("Index", "Preparar", new { id = s.Id })">@Iconos.Svg("key") Preparar</button>
+                                    <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = s.Id })">@Iconos.Svg("pencil") Editar</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="gas-card">
+    <div class="gas-card__header">
+        <div><h2>@Iconos.Svg("rocket") Despliegues automáticos</h2><p>Los 20 más recientes. Se inician desde Infraestructura › Ambientes.</p></div>
+        <a asp-page="/Infraestructura/Ambientes/Index" class="btn btn-sm btn-gas-outline">@Iconos.Svg("layers") Ir a Ambientes</a>
+    </div>
+    @if (Model.Ejecuciones.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("rocket") Aún no hay despliegues automáticos.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>#</th><th>Producto · ambientes</th><th>Versión</th><th>Estado</th><th>Inició</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var e in Model.Ejecuciones)
+                    {
+                        <tr>
+                            <td class="text-muted">#@e.Id</td>
+                            <td>
+                                <div><strong>@e.Producto.Nombre</strong> · @string.Join(", ", e.IdsAmbientes().Select(id => Model.NombresAmbientes.GetValueOrDefault(id, "?")))</div>
+                                <div class="small text-muted">@e.Servidor.Nombre</div>
+                            </td>
+                            <td>
+                                <div>@Iconos.Svg("git") @e.Referencia @(e.Commit is null ? "" : $"· {e.Commit[..7]}")</div>
+                                @if (e.MensajeCommit is not null) { <div class="small text-muted text-truncate" style="max-width: 320px;">@e.MensajeCommit</div> }
+                            </td>
+                            <td>
+                                <span class="gas-badge @Etiquetas.Badge(e.Estado)">@Etiquetas.Texto(e.Estado)</span>
+                                @if (e.Resumen is not null && e.Estado != EstadoEjecucion.Exitoso) { <div class="small text-muted mt-1 text-truncate" style="max-width: 280px;" title="@e.Resumen">@e.Resumen</div> }
+                            </td>
+                            <td>
+                                <div class="small">@Fechas.Relativo(e.CreadoUtc)</div>
+                                <div class="small text-muted">@e.IniciadoPor</div>
+                            </td>
+                            <td class="text-end"><a asp-page="/Infraestructura/Despliegues/Ejecucion" asp-route-id="@e.Id" class="btn btn-sm btn-gas-outline">@Iconos.Svg("eye") Ver bitácora</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@section Modal {
+    @if (Model.Modal is not null)
+    {
+        <partial name="_ServidorModal" model="Model.Modal" />
+    }
+    else if (Model.ModalPreparar is not null)
+    {
+        <partial name="_PrepararModal" model="Model.ModalPreparar" />
+    }
+}

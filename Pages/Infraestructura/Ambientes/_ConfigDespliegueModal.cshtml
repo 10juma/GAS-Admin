@@ -1,0 +1,147 @@
+@model GAS.Admin.Pages.Infraestructura.Ambientes.ConfigDespliegueModalVm
+@{
+    var formId = $"form-auto-{Model.AmbienteId}";
+    var i = Model.Input;
+}
+<div data-size="xl" style="display: contents;">
+    <div class="modal-header">
+        <span class="gas-modal__icon gas-modal__icon--violet">@Iconos.Svg("rocket")</span>
+        <div class="min-w-0">
+            <h2 class="modal-title">Despliegue automático</h2>
+            <div class="gas-modal__subtitle">@Model.Ambiente@(Model.Repositorio is null ? " · sin repositorio" : $" · {Model.Repositorio}")</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+    </div>
+    <div class="modal-body">
+        @if (Model.Servidores.Count == 0)
+        {
+            <div class="gas-callout">
+                <span class="gas-icon">@Iconos.Svg("server")</span>
+                <div class="gas-callout__text"><strong>Primero registra un servidor</strong>En Infraestructura › Servidores da de alta tu VPS y prepáralo con la contraseña de root.</div>
+                <a asp-page="/Infraestructura/Servidores/Index" class="btn btn-sm btn-gas">Ir a Servidores</a>
+            </div>
+        }
+        <form id="@formId" method="post" novalidate asp-page="/Infraestructura/Ambientes/Index" asp-page-handler="Automatizar" asp-route-ambienteId="@Model.AmbienteId" autocomplete="off">
+            <input type="hidden" name="volver" value="@Model.Volver" />
+            <div class="row g-3">
+                <div class="col-lg-6">
+                    <section class="gas-card h-100">
+                        <div class="gas-card__header"><div><h2>@Iconos.Svg("box") Contenedor</h2><p>Se compila en el servidor desde la raíz del repositorio.</p></div></div>
+                        <div class="gas-card__body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-srv">Servidor</label>
+                                    <select id="@formId-srv" name="Config.ServidorId" class="form-select">
+                                        <option value="">Elige…</option>
+                                        @foreach (var s in Model.Servidores) { <option value="@s.Id" selected="@(s.Id == i.ServidorId)">@s.Nombre</option> }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-df">Dockerfile</label>
+                                    <input id="@formId-df" name="Config.Dockerfile" value="@i.Dockerfile" class="form-control" maxlength="200" placeholder="deploy/web.Dockerfile" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-cont">Nombre del contenedor</label>
+                                    <input id="@formId-cont" name="Config.Contenedor" value="@i.Contenedor" class="form-control" maxlength="100" placeholder="pitazo-web" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-img">Imagen</label>
+                                    <input id="@formId-img" name="Config.Imagen" value="@i.Imagen" class="form-control" maxlength="100" placeholder="pitazo-web" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-pto">Puertos <span class="text-muted small">(uno por línea)</span></label>
+                                    <textarea id="@formId-pto" name="Config.Puertos" class="form-control font-monospace small" rows="2" placeholder="127.0.0.1:5002:8080">@i.Puertos</textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-red">Red de Docker</label>
+                                    <input id="@formId-red" name="Config.Red" value="@i.Red" class="form-control" maxlength="100" placeholder="pitazo-net" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-vol">Volúmenes <span class="text-muted small">(uno por línea)</span></label>
+                                    <textarea id="@formId-vol" name="Config.Volumenes" class="form-control font-monospace small" rows="3" placeholder="/root/pitazo-uploads:/app/wwwroot/uploads&#10;/root/pitazo-keys/web:/keys">@i.Volumenes</textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-salud">Ruta para verificar</label>
+                                    <input id="@formId-salud" name="Config.RutaSalud" value="@i.RutaSalud" class="form-control" maxlength="200" placeholder="/Account/Login" />
+                                    <div class="form-text">Se consulta en @(Model.Url ?? "la URL del ambiente (no tiene)"); cualquier respuesta menor a 500 cuenta como bien.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+                <div class="col-lg-6">
+                    <section class="gas-card mb-3">
+                        <div class="gas-card__header"><div><h2>@Iconos.Svg("key") Variables del contenedor</h2><p>Cifradas; nunca se vuelven a mostrar sus valores.</p></div></div>
+                        <div class="gas-card__body">
+                            @if (Model.VariablesGuardadas.Count > 0)
+                            {
+                                <div class="gas-badges mb-2">
+                                    @foreach (var v in Model.VariablesGuardadas) { <span class="gas-badge gas-badge--plain">@v</span> }
+                                </div>
+                            }
+                            else
+                            {
+                                <p class="small text-muted">Aún no hay variables guardadas.</p>
+                            }
+                            <textarea name="variables" class="form-control font-monospace small" rows="5" spellcheck="false"
+                                      placeholder="ASPNETCORE_ENVIRONMENT=Production&#10;ConnectionStrings__DefaultConnection=Server=sqlserver;Database=…&#10;Firebase__CredencialesJsonPath=/app/firebase-credentials.json">@Model.Variables</textarea>
+                            <div class="form-text">Una por línea, NOMBRE=valor, sin comillas. Solo se cambian las que escribas; <code>NOMBRE=</code> (vacío) la borra.</div>
+                            <div class="form-check mt-3">
+                                <input class="form-check-input" type="checkbox" id="@formId-gas" name="Config.IncluirSecretoGas" value="true" checked="@i.IncluirSecretoGas" />
+                                <input type="hidden" name="Config.IncluirSecretoGas" value="false" />
+                                <label class="form-check-label" for="@formId-gas">Agregar <code>Gas__Secreto</code> desde Productos › Conexiones</label>
+                                @if (!Model.ProductoConectado) { <div class="form-text">El producto aún no tiene conexión registrada; se agregará cuando la tenga.</div> }
+                            </div>
+                        </div>
+                    </section>
+                    <section class="gas-card">
+                        <div class="gas-card__header"><div><h2>@Iconos.Svg("layers") Base de datos</h2><p>Solo un ambiente del producto debe aplicar las migraciones.</p></div></div>
+                        <div class="gas-card__body">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="@formId-mig" name="Config.Migraciones" value="true" checked="@i.Migraciones" />
+                                <input type="hidden" name="Config.Migraciones" value="false" />
+                                <label class="form-check-label" for="@formId-mig">Este ambiente aplica las migraciones antes de reemplazar contenedores</label>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label class="form-label" for="@formId-dfm">Dockerfile de migraciones</label>
+                                    <input id="@formId-dfm" name="Config.DockerfileMigraciones" value="@i.DockerfileMigraciones" class="form-control" maxlength="200" placeholder="deploy/migraciones.Dockerfile" />
+                                </div>
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="@formId-resp" name="Config.RespaldarBd" value="true" checked="@i.RespaldarBd" />
+                                        <input type="hidden" name="Config.RespaldarBd" value="false" />
+                                        <label class="form-check-label" for="@formId-resp">Respaldar la base antes de migrar (se conservan 14 días)</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-sql">Contenedor de SQL Server</label>
+                                    <input id="@formId-sql" name="Config.ContenedorSql" value="@i.ContenedorSql" class="form-control" maxlength="100" placeholder="Del Server= de la conexión" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="@formId-bd">Base de datos</label>
+                                    <input id="@formId-bd" name="Config.BaseDatos" value="@i.BaseDatos" class="form-control" maxlength="128" placeholder="Del Database= de la conexión" />
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="modal-footer">
+        @if (Model.Existe)
+        {
+            <form method="post" asp-page="/Infraestructura/Ambientes/Index" asp-page-handler="QuitarAutomatizacion" asp-route-ambienteId="@Model.AmbienteId"
+                  data-confirm-title="¿Dejar de desplegar desde GAS-Admin?" data-confirm="Se borran esta configuración y sus variables cifradas. Los contenedores siguen corriendo en el servidor."
+                  data-confirm-ok="Quitar" data-confirm-tone="danger">
+                <input type="hidden" name="volver" value="@Model.Volver" />
+                <button type="submit" class="btn btn-gas-danger">@Iconos.Svg("trash") Quitar</button>
+            </form>
+        }
+        <div class="gas-modal__footer-end">
+            <button type="button" class="btn btn-gas-outline" data-bs-dismiss="modal">@Iconos.Svg("x") Cancelar</button>
+            <button type="submit" form="@formId" class="btn btn-gas">@Iconos.Svg("save") Guardar</button>
+        </div>
+    </div>
+</div>

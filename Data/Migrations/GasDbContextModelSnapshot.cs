@@ -649,6 +649,97 @@ namespace GAS.Admin.Data.Migrations
                     b.ToTable("ConexionesProducto", (string)null);
                 });
 
+            modelBuilder.Entity("GAS.Admin.Models.Entities.ConfiguracionDespliegue", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AmbienteId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("BaseDatos")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Contenedor")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ContenedorSql")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("CreadoPor")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("CreadoUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Dockerfile")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DockerfileMigraciones")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Imagen")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IncluirSecretoGas")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("Migraciones")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ModificadoPor")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("ModificadoUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Puertos")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Red")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("RespaldarBd")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("RutaSalud")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("ServidorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Volumenes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AmbienteId")
+                        .IsUnique();
+
+                    b.HasIndex("ServidorId");
+
+                    b.ToTable("ConfiguracionesDespliegue", (string)null);
+                });
+
             modelBuilder.Entity("GAS.Admin.Models.Entities.Cotizacion", b =>
                 {
                     b.Property<int>("Id")
@@ -1352,6 +1443,76 @@ namespace GAS.Admin.Data.Migrations
                     b.HasIndex("RegistradorId");
 
                     b.ToTable("Dominios", (string)null);
+                });
+
+            modelBuilder.Entity("GAS.Admin.Models.Entities.EjecucionDespliegue", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Ambientes")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Bitacora")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Commit")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime>("CreadoUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("FinUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IniciadoPor")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("InicioUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("MensajeCommit")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("ProductoId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Referencia")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Resumen")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("ServidorId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreadoUtc");
+
+                    b.HasIndex("ProductoId");
+
+                    b.HasIndex("ServidorId");
+
+                    b.ToTable("EjecucionesDespliegue", (string)null);
                 });
 
             modelBuilder.Entity("GAS.Admin.Models.Entities.Empresa", b =>
@@ -2825,6 +2986,76 @@ namespace GAS.Admin.Data.Migrations
                     b.ToTable("ServiciosProductos", (string)null);
                 });
 
+            modelBuilder.Entity("GAS.Admin.Models.Entities.Servidor", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreadoPor")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("CreadoUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("HuellaHost")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ModificadoPor")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("ModificadoUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("PreparadoUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Puerto")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Sistema")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime?>("UltimaConexionUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UltimoError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Usuario")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique();
+
+                    b.ToTable("Servidores", (string)null);
+                });
+
             modelBuilder.Entity("GAS.Admin.Models.Entities.SlaPrioridad", b =>
                 {
                     b.Property<string>("Prioridad")
@@ -3643,6 +3874,25 @@ namespace GAS.Admin.Data.Migrations
                     b.Navigation("Producto");
                 });
 
+            modelBuilder.Entity("GAS.Admin.Models.Entities.ConfiguracionDespliegue", b =>
+                {
+                    b.HasOne("GAS.Admin.Models.Entities.Ambiente", "Ambiente")
+                        .WithMany()
+                        .HasForeignKey("AmbienteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GAS.Admin.Models.Entities.Servidor", "Servidor")
+                        .WithMany()
+                        .HasForeignKey("ServidorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Ambiente");
+
+                    b.Navigation("Servidor");
+                });
+
             modelBuilder.Entity("GAS.Admin.Models.Entities.Cotizacion", b =>
                 {
                     b.HasOne("GAS.Admin.Models.Entities.Cliente", "Cliente")
@@ -3784,6 +4034,25 @@ namespace GAS.Admin.Data.Migrations
                     b.Navigation("Producto");
 
                     b.Navigation("Registrador");
+                });
+
+            modelBuilder.Entity("GAS.Admin.Models.Entities.EjecucionDespliegue", b =>
+                {
+                    b.HasOne("GAS.Admin.Models.Entities.Producto", "Producto")
+                        .WithMany()
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GAS.Admin.Models.Entities.Servidor", "Servidor")
+                        .WithMany()
+                        .HasForeignKey("ServidorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Producto");
+
+                    b.Navigation("Servidor");
                 });
 
             modelBuilder.Entity("GAS.Admin.Models.Entities.Entregable", b =>

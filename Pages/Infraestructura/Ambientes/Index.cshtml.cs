@@ -5,6 +5,7 @@ using GAS.Admin.Infrastructure.Toasts;
 using GAS.Admin.Models.Entities;
 using GAS.Admin.Security;
 using GAS.Admin.Services.Catalogos;
+using GAS.Admin.Services.Despliegues;
 using GAS.Admin.Services.Infraestructura;
 using GAS.Admin.Services.Proyectos;
 using Microsoft.AspNetCore.Authorization;
@@ -46,6 +47,50 @@ public class DespliegueInput
     public string? Notas { get; set; }
 }
 
+public class ConfigDespliegueInput
+{
+    public int? ServidorId { get; set; }
+    [StringLength(200)] public string? Dockerfile { get; set; }
+    [StringLength(100)] public string? Contenedor { get; set; }
+    [StringLength(100)] public string? Imagen { get; set; }
+    [StringLength(500)] public string? Puertos { get; set; }
+    [StringLength(100)] public string? Red { get; set; }
+    [StringLength(2000)] public string? Volumenes { get; set; }
+    [StringLength(200)] public string? RutaSalud { get; set; } = "/";
+    public bool IncluirSecretoGas { get; set; } = true;
+    public bool Migraciones { get; set; }
+    [StringLength(200)] public string? DockerfileMigraciones { get; set; }
+    public bool RespaldarBd { get; set; } = true;
+    [StringLength(100)] public string? ContenedorSql { get; set; }
+    [StringLength(128)] public string? BaseDatos { get; set; }
+}
+
+public class ConfigDespliegueModalVm
+{
+    public int AmbienteId { get; init; }
+    public string Ambiente { get; init; } = string.Empty;
+    public string? Repositorio { get; init; }
+    public string? Url { get; init; }
+    public bool Existe { get; init; }
+    public ConfigDespliegueInput Input { get; init; } = new();
+    public List<Opcion> Servidores { get; init; } = [];
+    public List<string> VariablesGuardadas { get; init; } = [];
+    public string? Variables { get; init; }
+    public bool ProductoConectado { get; init; }
+    public string? Volver { get; init; }
+}
+
+public class DesplegarModalVm
+{
+    public int AmbienteId { get; init; }
+    public string Producto { get; init; } = string.Empty;
+    public string Servidor { get; init; } = string.Empty;
+    public string? Repositorio { get; init; }
+    public string Referencia { get; init; } = string.Empty;
+    public List<(int Id, string Nombre, string Detalle, bool Migra)> Ambientes { get; init; } = [];
+    public string? Volver { get; init; }
+}
+
 public class AmbienteModalVm
 {
     public int? Id { get; init; }
@@ -76,16 +121,23 @@ public class DespliegueModalVm
 }
 
 [Authorize(Policy = Permisos.Infraestructura.Ver)]
-public class IndexModel : PageModel
+public partial class IndexModel : PageModel
 {
     private readonly GasDbContext _db;
     private readonly ServicioInfraestructura _infra;
+    private readonly ServicioDespliegues _despliegues;
 
-    public IndexModel(GasDbContext db, ServicioInfraestructura infra)
+    public IndexModel(GasDbContext db, ServicioInfraestructura infra, ServicioDespliegues despliegues)
     {
         _db = db;
         _infra = infra;
+        _despliegues = despliegues;
     }
+
+    /// <summary>Despliegue automático (servidores y credenciales de producción): solo Admin.</summary>
+    public bool EsAdmin => User.IsInRole(RolesBase.Admin);
+    public HashSet<int> Automatizados { get; private set; } = [];
+    public ConfigDespliegueModalVm? ModalConfig { get; private set; }
 
     [BindProperty(SupportsGet = true)] public int? Producto { get; set; }
 
@@ -241,6 +293,178 @@ public class IndexModel : PageModel
         return this.VolverA(volver, "Index");
     }
 
+    // ---------- Despliegue automático ----------
+
+    public async Task<IActionResult> OnGetAutomatizarAsync(int ambienteId, string? volver)
+    {
+        if (!EsAdmin) return Forbid();
+        var a = await _db.Ambientes.AsNoTracking().Include(x => x.Producto).Include(x => x.Repositorio).FirstOrDefaultAsync(x => x.Id == ambienteId);
+        if (a is null) return NotFound();
+        var c = await _db.ConfiguracionesDespliegue.AsNoTracking().FirstOrDefaultAsync(x => x.AmbienteId == ambienteId);
+        return Partial("_ConfigDespliegueModal", await ConfigVmAsync(a, c is null ? Sugerida(a) : DesdeConfig(c), c is not null, null, volver));
+    }
+
+    public async Task<IActionResult> OnPostAutomatizarAsync(int ambienteId, [Bind(Prefix = "Config")] ConfigDespliegueInput input, string? variables, string? volver)
+    {
+        if (!EsAdmin) return Forbid();
+        var a = await _db.Ambientes.Include(x => x.Producto).Include(x => x.Repositorio).FirstOrDefaultAsync(x => x.Id == ambienteId);
+        if (a is null) return NotFound();
+        var c = await _db.ConfiguracionesDespliegue.FirstOrDefaultAsync(x => x.AmbienteId == ambienteId);
+        await ValidarConfigAsync(input, a);
+        if (ModelState.IsValid)
+        {
+            var nuevo = c is null;
+            c ??= _db.ConfiguracionesDespliegue.Add(new ConfiguracionDespliegue { AmbienteId = a.Id }).Entity;
+            c.ServidorId = input.ServidorId!.Value;
+            c.Dockerfile = input.Dockerfile!.Trim();
+            c.Contenedor = input.Contenedor!.Trim();
+            c.Imagen = input.Imagen!.Trim();
+            c.Puertos = Opciones.Limpio(string.Join('\n', EjecutorDespliegue.Lineas(input.Puertos)));
+            c.Red = Opciones.Limpio(input.Red);
+            c.Volumenes = Opciones.Limpio(string.Join('\n', EjecutorDespliegue.Lineas(input.Volumenes)));
+            c.RutaSalud = "/" + (input.RutaSalud ?? "").Trim().TrimStart('/');
+            c.IncluirSecretoGas = input.IncluirSecretoGas;
+            c.Migraciones = input.Migraciones;
+            c.DockerfileMigraciones = Opciones.Limpio(input.DockerfileMigraciones);
+            c.RespaldarBd = input.RespaldarBd;
+            c.ContenedorSql = Opciones.Limpio(input.ContenedorSql);
+            c.BaseDatos = Opciones.Limpio(input.BaseDatos);
+            if (await _despliegues.ActualizarVariablesAsync(a.Id, variables, $"Variables de {a.Producto.Nombre} · {a.Nombre}") is { } errorVars)
+            {
+                ModelState.AddModelError(string.Empty, errorVars);
+            }
+            else
+            {
+                await _db.SaveChangesAsync();
+                this.ToastSuccess(nuevo ? $"{a.Nombre} listo para desplegar desde GAS-Admin." : $"Despliegue de {a.Nombre} actualizado.");
+                return this.VolverA(volver, "Index");
+            }
+        }
+        await CargarAsync();
+        ModalConfig = await ConfigVmAsync(a, input, c is not null, variables, volver);
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostQuitarAutomatizacionAsync(int ambienteId, string? volver)
+    {
+        if (!EsAdmin) return Forbid();
+        var c = await _db.ConfiguracionesDespliegue.Include(x => x.Ambiente).FirstOrDefaultAsync(x => x.AmbienteId == ambienteId);
+        if (c is null) return NotFound();
+        _db.ConfiguracionesDespliegue.Remove(c);
+        await _db.SaveChangesAsync();
+        await _despliegues.QuitarVariablesAsync(ambienteId, $"Variables de {c.Ambiente.Nombre}");
+        this.ToastSuccess($"{c.Ambiente.Nombre} ya no se despliega desde GAS-Admin. Los contenedores siguen corriendo.");
+        return this.VolverA(volver, "Index");
+    }
+
+    public async Task<IActionResult> OnGetDesplegarAutoAsync(int ambienteId, string? volver)
+    {
+        if (!EsAdmin) return Forbid();
+        var grupo = await _despliegues.GrupoAsync(ambienteId);
+        if (grupo.Count == 0) return NotFound();
+        var a = grupo.First(g => g.AmbienteId == ambienteId).Ambiente;
+        var producto = await _db.Productos.AsNoTracking().Where(p => p.Id == a.ProductoId).Select(p => p.Nombre).FirstAsync();
+        var servidor = await _db.Servidores.AsNoTracking().Where(s => s.Id == grupo[0].ServidorId).Select(s => s.Nombre).FirstAsync();
+        return Partial("_DesplegarModal", new DesplegarModalVm
+        {
+            AmbienteId = ambienteId,
+            Producto = producto,
+            Servidor = servidor,
+            Repositorio = a.Repositorio?.Url,
+            Referencia = a.Rama ?? a.Repositorio?.RamaPrincipal ?? "main",
+            Ambientes = grupo.Select(g => (g.AmbienteId, g.Ambiente.Nombre, $"{g.Contenedor} · {g.Dockerfile}", g.Migraciones)).ToList(),
+            Volver = volver
+        });
+    }
+
+    public async Task<IActionResult> OnPostDesplegarAutoAsync(List<int> ambientes, string? referencia, string? volver)
+    {
+        if (!EsAdmin) return Forbid();
+        var (e, error) = await _despliegues.IniciarAsync(ambientes, referencia ?? "", User.Identity?.Name ?? "Admin");
+        if (e is null)
+        {
+            this.ToastError(error!);
+            return this.VolverA(volver, "Index");
+        }
+        this.ToastInfo($"Despliegue #{e.Id} en marcha. Puedes seguir aquí su avance o cerrar la página.");
+        return RedirectToPage("/Infraestructura/Despliegues/Ejecucion", new { id = e.Id });
+    }
+
+    private static ConfigDespliegueInput Sugerida(Ambiente a)
+    {
+        var producto = EjecutorDespliegue.Slug(a.Producto.Nombre);
+        var tipo = a.Plataforma == PlataformaAmbiente.Api ? "api" : "web";
+        var sufijo = a.Tipo == TipoAmbiente.Produccion ? "" : "-" + EjecutorDespliegue.Slug(a.Tipo.ToString());
+        return new ConfigDespliegueInput
+        {
+            Dockerfile = $"deploy/{tipo}.Dockerfile",
+            Contenedor = $"{producto}-{tipo}{sufijo}",
+            Imagen = $"{producto}-{tipo}",
+            RutaSalud = "/",
+            Migraciones = a.Plataforma == PlataformaAmbiente.Api,
+            DockerfileMigraciones = a.Plataforma == PlataformaAmbiente.Api ? "deploy/migraciones.Dockerfile" : null
+        };
+    }
+
+    private static ConfigDespliegueInput DesdeConfig(ConfiguracionDespliegue c) => new()
+    {
+        ServidorId = c.ServidorId, Dockerfile = c.Dockerfile, Contenedor = c.Contenedor, Imagen = c.Imagen, Puertos = c.Puertos, Red = c.Red,
+        Volumenes = c.Volumenes, RutaSalud = c.RutaSalud, IncluirSecretoGas = c.IncluirSecretoGas, Migraciones = c.Migraciones,
+        DockerfileMigraciones = c.DockerfileMigraciones, RespaldarBd = c.RespaldarBd, ContenedorSql = c.ContenedorSql, BaseDatos = c.BaseDatos
+    };
+
+    private async Task<ConfigDespliegueModalVm> ConfigVmAsync(Ambiente a, ConfigDespliegueInput input, bool existe, string? variables, string? volver) => new()
+    {
+        AmbienteId = a.Id,
+        Ambiente = $"{a.Producto.Nombre} · {a.Nombre}",
+        Repositorio = a.Repositorio?.Url,
+        Url = a.Url,
+        Existe = existe,
+        Input = input,
+        Servidores = await _db.Servidores.AsNoTracking().OrderBy(s => s.Nombre).Select(s => new Opcion(s.Id, s.Nombre)).ToListAsync(),
+        VariablesGuardadas = _despliegues.Variables(a.Id).Keys.OrderBy(k => k).ToList(),
+        Variables = variables,
+        ProductoConectado = await _db.ConexionesProducto.AnyAsync(c => c.ProductoId == a.ProductoId),
+        Volver = volver
+    };
+
+    private async Task ValidarConfigAsync(ConfigDespliegueInput i, Ambiente a)
+    {
+        void Error(string m) => ModelState.AddModelError(string.Empty, m);
+        if (i.ServidorId is null || !await _db.Servidores.AnyAsync(s => s.Id == i.ServidorId)) Error("Elige el servidor.");
+        if (a.Repositorio is null || Services.Integraciones.ServicioIntegraciones.NombreGitHub(a.Repositorio.Url) is null)
+            Error("El ambiente necesita un repositorio de GitHub con su URL (edita el ambiente y el repositorio).");
+        if (!RutaRegex().IsMatch(i.Dockerfile ?? "") || i.Dockerfile!.Contains("..")) Error("El Dockerfile debe ser una ruta dentro del repositorio, p. ej. deploy/web.Dockerfile.");
+        if (!NombreDockerRegex().IsMatch(i.Contenedor ?? "")) Error("El nombre del contenedor solo admite minúsculas, números, guiones, puntos y guion bajo.");
+        if (!NombreDockerRegex().IsMatch(i.Imagen ?? "")) Error("El nombre de la imagen solo admite minúsculas, números, guiones, puntos y guion bajo.");
+        foreach (var p in EjecutorDespliegue.Lineas(i.Puertos))
+            if (!PuertoRegex().IsMatch(p)) Error($"Puerto «{p}»: usa el formato 127.0.0.1:5002:8080.");
+        foreach (var v in EjecutorDespliegue.Lineas(i.Volumenes))
+            if (!VolumenRegex().IsMatch(v)) Error($"Volumen «{v}»: usa el formato /ruta/en/servidor:/ruta/en/contenedor[:ro].");
+        if (!string.IsNullOrWhiteSpace(i.Red) && !NombreDockerRegex().IsMatch(i.Red.Trim())) Error("El nombre de la red no es válido.");
+        if (!string.IsNullOrWhiteSpace(i.RutaSalud) && !RutaSaludRegex().IsMatch(i.RutaSalud.Trim())) Error("La ruta de salud debe ser como /Account/Login.");
+        if (i.Migraciones && (!RutaRegex().IsMatch(i.DockerfileMigraciones ?? "") || i.DockerfileMigraciones!.Contains("..")))
+            Error("Indica el Dockerfile de migraciones (p. ej. deploy/migraciones.Dockerfile).");
+        if (!string.IsNullOrWhiteSpace(i.ContenedorSql) && !NombreDockerRegex().IsMatch(i.ContenedorSql.Trim())) Error("El nombre del contenedor de SQL no es válido.");
+        if (i.ServidorId is not null && !string.IsNullOrWhiteSpace(i.Contenedor)
+            && await _db.ConfiguracionesDespliegue.AnyAsync(c => c.ServidorId == i.ServidorId && c.AmbienteId != a.Id && c.Contenedor == i.Contenedor.Trim()))
+            Error($"Otro ambiente ya usa el contenedor {i.Contenedor.Trim()} en ese servidor.");
+        if (i.Migraciones && await _db.ConfiguracionesDespliegue.AnyAsync(c => c.AmbienteId != a.Id && c.Migraciones
+                && c.ServidorId == i.ServidorId && c.Ambiente.ProductoId == a.ProductoId && c.Ambiente.RepositorioId == a.RepositorioId))
+            Error("Otro ambiente de este producto ya aplica las migraciones; solo uno debe hacerlo.");
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^[A-Za-z0-9._/\-]{1,200}$")]
+    private static partial System.Text.RegularExpressions.Regex RutaRegex();
+    [System.Text.RegularExpressions.GeneratedRegex(@"^[a-z0-9][a-z0-9_.\-]{0,99}$")]
+    private static partial System.Text.RegularExpressions.Regex NombreDockerRegex();
+    [System.Text.RegularExpressions.GeneratedRegex(@"^((\d{1,3}\.){3}\d{1,3}:)?\d{1,5}:\d{1,5}(/(tcp|udp))?$")]
+    private static partial System.Text.RegularExpressions.Regex PuertoRegex();
+    [System.Text.RegularExpressions.GeneratedRegex(@"^/[^:\s]*:/[^:\s]*(:(ro|rw))?$")]
+    private static partial System.Text.RegularExpressions.Regex VolumenRegex();
+    [System.Text.RegularExpressions.GeneratedRegex(@"^/?[A-Za-z0-9._/\-?=&]*$")]
+    private static partial System.Text.RegularExpressions.Regex RutaSaludRegex();
+
     // ---------- Apoyo ----------
 
     private static AmbienteInput Desde(Ambiente a) => new()
@@ -306,6 +530,7 @@ public class IndexModel : PageModel
 
     private async Task CargarAsync()
     {
+        Automatizados = (await _db.ConfiguracionesDespliegue.Select(c => c.AmbienteId).ToListAsync()).ToHashSet();
         Productos = await Listas.ProductosAsync(_db);
         var abiertos = await _db.Incidentes.Where(i => i.AmbienteId != null && i.Estado != EstadoIncidente.Resuelto)
             .GroupBy(i => i.AmbienteId!.Value).Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N);

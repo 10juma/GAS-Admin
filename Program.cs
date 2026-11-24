@@ -157,6 +157,14 @@ builder.Services.AddHttpClient<GAS.Admin.Services.Correo.IServicioCorreo, GAS.Ad
     client.BaseAddress = new Uri("https://api.resend.com/");
     client.Timeout = TimeSpan.FromSeconds(30);
 });
+// Despliegue automático: SSH con llave a los servidores, código desde GitHub, compilación en el servidor.
+// Dirección, llave privada y variables de los contenedores van cifradas en LlavesConfiguracion (Despliegue:*).
+builder.Services.AddHttpClient("despliegues", client => client.Timeout = TimeSpan.FromMinutes(10));
+builder.Services.AddScoped<GAS.Admin.Services.Despliegues.ServicioServidores>();
+builder.Services.AddScoped<GAS.Admin.Services.Despliegues.ServicioDespliegues>();
+builder.Services.AddScoped<GAS.Admin.Services.Despliegues.EjecutorDespliegue>();
+builder.Services.AddSingleton<GAS.Admin.Services.Despliegues.ColaDespliegues>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<GAS.Admin.Services.Despliegues.ColaDespliegues>());
 builder.Services.AddScoped<GAS.Admin.Services.Navegacion.ContadoresMenu>();
 builder.Services.AddScoped<GAS.Admin.Services.Correo.PlantillaCorreo>();
 

@@ -3,7 +3,7 @@
 @{
     ViewData["Title"] = "Ambientes";
     ViewData["Seccion"] = "Infraestructura";
-    if (Model.Modal is not null || Model.ModalDespliegue is not null) ViewData["AbrirModal"] = true;
+    if (Model.Modal is not null || Model.ModalDespliegue is not null || Model.ModalConfig is not null) ViewData["AbrirModal"] = true;
     var volver = Model.VolverActual;
 }
 
@@ -98,9 +98,17 @@
                                 }
                             </td>
                             <td class="text-end text-nowrap">
-                                @if (Model.PuedeGestionar)
+                                @if (Model.EsAdmin && Model.Automatizados.Contains(a.Id))
                                 {
-                                    <button type="button" class="btn btn-sm btn-gas" data-modal-url="@Url.Page("Index", "Despliegue", new { ambienteId = a.Id, volver })">@Iconos.Svg("rocket") Desplegar</button>
+                                    <button type="button" class="btn btn-sm btn-gas" data-modal-url="@Url.Page("Index", "DesplegarAuto", new { ambienteId = a.Id, volver })">@Iconos.Svg("rocket") Desplegar</button>
+                                }
+                                else if (Model.PuedeGestionar)
+                                {
+                                    <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Despliegue", new { ambienteId = a.Id, volver })">@Iconos.Svg("note") Registrar despliegue</button>
+                                }
+                                @if (Model.EsAdmin)
+                                {
+                                    <button type="button" class="btn btn-sm btn-gas-outline" title="Despliegue automático desde GAS-Admin" data-modal-url="@Url.Page("Index", "Automatizar", new { ambienteId = a.Id, volver })">@Iconos.Svg(Model.Automatizados.Contains(a.Id) ? "server" : "plug") @(Model.Automatizados.Contains(a.Id) ? "Configurar" : "Automatizar")</button>
                                 }
                                 <button type="button" class="btn btn-sm btn-gas-outline" data-modal-url="@Url.Page("Index", "Editar", new { id = a.Id, volver })">@Iconos.Svg(Model.PuedeGestionar ? "pencil" : "eye") @(Model.PuedeGestionar ? "Editar" : "Ver")</button>
                             </td>
@@ -120,5 +128,9 @@
     else if (Model.ModalDespliegue is not null)
     {
         <partial name="_DespliegueModal" model="Model.ModalDespliegue" />
+    }
+    else if (Model.ModalConfig is not null)
+    {
+        <partial name="_ConfigDespliegueModal" model="Model.ModalConfig" />
     }
 }

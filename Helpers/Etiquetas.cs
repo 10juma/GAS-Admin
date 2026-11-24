@@ -186,6 +186,17 @@ public static class Etiquetas
         ResultadoDespliegue.ConProblemas => "Con problemas",
         ResultadoDespliegue.Revertido => "Revertido",
 
+        EstadoServidor.SinPreparar => "Sin preparar",
+        EstadoServidor.Listo => "Listo",
+        EstadoServidor.ConError => "Con error",
+
+        EstadoEjecucion.EnCola => "En cola",
+        EstadoEjecucion.EnCurso => "En curso",
+        EstadoEjecucion.Exitoso => "Exitoso",
+        EstadoEjecucion.Fallido => "Falló",
+        EstadoEjecucion.Revertido => "Revertido",
+        EstadoEjecucion.Interrumpido => "Interrumpido",
+
         EstadoDominio.Activo => "Activo",
         EstadoDominio.Cancelado => "Cancelado",
         EstadoDominio.Transferido => "Transferido",
@@ -242,7 +253,10 @@ public static class Etiquetas
         LineaNegocio.ProductosSaaS or OrigenMovimiento.Renovacion or OrigenMovimiento.Stripe => "violet",
         LineaNegocio.Servicios or OrigenMovimiento.Cotizacion => "info",
         EstadoAmbiente.Operativo or ResultadoDespliegue.Exitoso or EstadoDominio.Activo or EstadoIncidente.Resuelto
-            or EstadoCredencial.Activa => "success",
+            or EstadoCredencial.Activa or EstadoServidor.Listo or EstadoEjecucion.Exitoso => "success",
+        EstadoEjecucion.EnCola or EstadoEjecucion.EnCurso => "info",
+        EstadoServidor.SinPreparar or EstadoEjecucion.Revertido or EstadoEjecucion.Interrumpido => "warning",
+        EstadoServidor.ConError or EstadoEjecucion.Fallido => "danger",
         EstadoAmbiente.Degradado or ResultadoDespliegue.ConProblemas or SeveridadIncidente.Media
             or EstadoIncidente.Mitigado or TipoAmbiente.Staging => "warning",
         EstadoAmbiente.Caido or ResultadoDespliegue.Revertido or SeveridadIncidente.Critica or SeveridadIncidente.Alta

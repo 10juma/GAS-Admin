@@ -41,6 +41,9 @@ public class GasDbContext : IdentityDbContext<ApplicationUser, IdentityRole, str
     public DbSet<Repositorio> Repositorios => Set<Repositorio>();
     public DbSet<Ambiente> Ambientes => Set<Ambiente>();
     public DbSet<Despliegue> Despliegues => Set<Despliegue>();
+    public DbSet<Servidor> Servidores => Set<Servidor>();
+    public DbSet<ConfiguracionDespliegue> ConfiguracionesDespliegue => Set<ConfiguracionDespliegue>();
+    public DbSet<EjecucionDespliegue> EjecucionesDespliegue => Set<EjecucionDespliegue>();
     public DbSet<Dominio> Dominios => Set<Dominio>();
     public DbSet<Incidente> Incidentes => Set<Incidente>();
     public DbSet<Credencial> Credenciales => Set<Credencial>();
@@ -470,6 +473,54 @@ public class GasDbContext : IdentityDbContext<ApplicationUser, IdentityRole, str
             entity.HasIndex(d => new { d.AmbienteId, d.FechaUtc });
             entity.HasOne(d => d.Ambiente).WithMany(a => a.Despliegues).HasForeignKey(d => d.AmbienteId).OnDelete(DeleteBehavior.Cascade);
             ConfigurarAuditoria(entity);
+        });
+
+        builder.Entity<Servidor>(entity =>
+        {
+            entity.ToTable("Servidores");
+            entity.Property(x => x.Nombre).HasMaxLength(100).IsRequired();
+            entity.HasIndex(x => x.Nombre).IsUnique();
+            entity.Property(x => x.Usuario).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.HuellaHost).HasMaxLength(100);
+            entity.Property(x => x.Estado).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Sistema).HasMaxLength(300);
+            entity.Property(x => x.UltimoError).HasMaxLength(1000);
+            entity.Property(x => x.Notas).HasMaxLength(2000);
+            ConfigurarAuditoria(entity);
+        });
+
+        builder.Entity<ConfiguracionDespliegue>(entity =>
+        {
+            entity.ToTable("ConfiguracionesDespliegue");
+            entity.HasIndex(x => x.AmbienteId).IsUnique();
+            entity.HasOne(x => x.Ambiente).WithMany().HasForeignKey(x => x.AmbienteId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Servidor).WithMany().HasForeignKey(x => x.ServidorId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(x => x.Dockerfile).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Contenedor).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Imagen).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Puertos).HasMaxLength(500);
+            entity.Property(x => x.Red).HasMaxLength(100);
+            entity.Property(x => x.Volumenes).HasMaxLength(2000);
+            entity.Property(x => x.RutaSalud).HasMaxLength(200);
+            entity.Property(x => x.DockerfileMigraciones).HasMaxLength(200);
+            entity.Property(x => x.ContenedorSql).HasMaxLength(100);
+            entity.Property(x => x.BaseDatos).HasMaxLength(128);
+            ConfigurarAuditoria(entity);
+        });
+
+        builder.Entity<EjecucionDespliegue>(entity =>
+        {
+            entity.ToTable("EjecucionesDespliegue");
+            entity.HasOne(x => x.Producto).WithMany().HasForeignKey(x => x.ProductoId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Servidor).WithMany().HasForeignKey(x => x.ServidorId).OnDelete(DeleteBehavior.Restrict);
+            entity.Property(x => x.Ambientes).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Referencia).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.Commit).HasMaxLength(40);
+            entity.Property(x => x.MensajeCommit).HasMaxLength(500);
+            entity.Property(x => x.Estado).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Resumen).HasMaxLength(1000);
+            entity.Property(x => x.IniciadoPor).HasMaxLength(256);
+            entity.HasIndex(x => x.CreadoUtc);
         });
 
         builder.Entity<Dominio>(entity =>
