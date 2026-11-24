@@ -7,6 +7,8 @@ using GAS.Admin.Models.Entities;
 using GAS.Admin.Security;
 using GAS.Admin.Services.Auditoria;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -108,6 +110,28 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermisoHandler>();
 builder.Services.AddScoped<IAuditoria, ServicioAuditoria>();
 builder.Services.AddMemoryCache();
 
+// Llaves de Data Protection (cookie de sesión, antifalsificación, enlaces de recuperación de contraseña).
+// Fuera de Development se guardan en disco (DataProtection:Ruta, por defecto /keys, un volumen de Docker):
+// si no, cada despliegue o reinicio cerraría todas las sesiones e invalidaría los enlaces enviados.
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["DataProtection:Ruta"] is { Length: > 0 } rutaLlaves ? rutaLlaves : "/keys"))
+        .SetApplicationName("GAS-Admin");
+    // En producción todo va por https: la cookie antifalsificación también solo viaja cifrada.
+    builder.Services.AddAntiforgery(o => o.Cookie.SecurePolicy = CookieSecurePolicy.Always);
+}
+
+// Detrás de Nginx (TLS en Nginx, la app escucha en http): se toman el esquema y la IP real de
+// X-Forwarded-Proto/For. Se confía en cualquier origen porque el contenedor solo publica su puerto
+// en 127.0.0.1, así que únicamente Nginx puede llegar a él.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.KnownIPNetworks.Clear();
+    o.KnownProxies.Clear();
+});
+
 // Archivos de proyectos: disco privado fuera de wwwroot (Archivos:Ruta), máximo 25 MB.
 builder.Services.Configure<GAS.Admin.Services.Archivos.OpcionesArchivos>(builder.Configuration.GetSection("Archivos"));
 builder.Services.AddSingleton<GAS.Admin.Services.Archivos.IAlmacenArchivos, GAS.Admin.Services.Archivos.AlmacenDisco>();
@@ -188,6 +212,7 @@ await SeguridadSeeder.SeedAsync(app.Services);
 
 if (!app.Environment.IsDevelopment())
 {
+    app.UseForwardedHeaders(); // primero: el resto debe ver https y la IP del cliente
     app.UseExceptionHandler("/Error");
     app.UseHsts();
 }

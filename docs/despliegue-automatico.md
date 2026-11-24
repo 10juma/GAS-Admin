@@ -69,6 +69,26 @@ y `.dockerignore`. Equivalen a los `docker run` que se hacían a mano.
 `Gas__Secreto` se agrega solo (casilla *Agregar Gas__Secreto*) desde *Productos › Conexiones*.
 El contenedor de SQL (`sqlserver`) y la base (`Pitazo`) para el respaldo se toman de la cadena de conexión.
 
+## Valores para GAS-Admin
+
+GAS-Admin se publica a sí mismo **desde la instancia local** (la publicada lo rechaza: reemplazaría su propio contenedor).
+Requiere el producto *GAS-Admin* en el catálogo, el repositorio `https://github.com/10juma/GAS-Admin` y el ambiente
+*GAS-Admin producción* (plataforma Backoffice) con URL `https://gasadmin.globalappsuite.com.mx`.
+
+| Campo | Valor |
+|---|---|
+| Dockerfile | `deploy/gas-admin.Dockerfile` |
+| Contenedor / imagen | `gas-admin` / `gas-admin` |
+| Puertos | `127.0.0.1:5010:8080` (el que espera Nginx) |
+| Red | `pitazo-net` (la del contenedor `sqlserver`) |
+| Volúmenes | `/root/gas-admin/keys:/keys`<br>`/root/gas-admin/archivos:/app/App_Data/archivos` |
+| Ruta para verificar | `/Account/Login` |
+| Agregar Gas__Secreto | No (no es un producto conectado) |
+| Migraciones | Sí, `deploy/migraciones.Dockerfile`, con respaldo de la base `GAS` |
+| Variables | `ASPNETCORE_ENVIRONMENT=Production`<br>`AllowedHosts=gasadmin.globalappsuite.com.mx`<br>`ConnectionStrings__DefaultConnection=Server=sqlserver;Database=GAS;User Id=…;Password=…;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True`<br>`Seguridad__LlaveMaestra=` el contenido de `~/.gas-admin/llave-maestra.key` (la misma de la Mac) |
+
+Después del primer despliegue: en *Organización › Configuración* captura la dirección pública `https://gasadmin.globalappsuite.com.mx`.
+
 ## Si algo sale mal
 
 - **"La huella del servidor cambió"**: el servidor se reinstaló o no es el mismo. Si es legítimo, *Preparar* de nuevo.

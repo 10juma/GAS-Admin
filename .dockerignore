@@ -1,0 +1,12 @@
+# Lo que no se manda a "docker build" (deploy/*.Dockerfile compilan desde la raíz).
+.git
+.vs
+.vscode
+.claude
+**/bin/
+**/obj/
+**/._*
+.DS_Store
+App_Data/
+# Contiene la cadena de conexión de desarrollo (con contraseña). No debe entrar a una imagen.
+appsettings.Development.json

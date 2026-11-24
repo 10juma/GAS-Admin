@@ -19,9 +19,11 @@ public partial class ServicioDespliegues
     private readonly IConfiguration _config;
     private readonly ColaDespliegues _cola;
     private readonly IAuditoria _auditoria;
+    private readonly IHostEnvironment _entorno;
 
-    public ServicioDespliegues(GasDbContext db, ServicioLlaves llaves, IConfiguration config, ColaDespliegues cola, IAuditoria auditoria)
+    public ServicioDespliegues(GasDbContext db, ServicioLlaves llaves, IConfiguration config, ColaDespliegues cola, IAuditoria auditoria, IHostEnvironment entorno)
     {
+        _entorno = entorno;
         _db = db;
         _llaves = llaves;
         _config = config;
@@ -130,6 +132,9 @@ public partial class ServicioDespliegues
         if (string.IsNullOrWhiteSpace(_config["Integraciones:GitHub:Token"]))
             return (null, "Falta el token de GitHub (Infraestructura › Integraciones); con él se descarga el código.");
         if (configs.Count(c => c.Migraciones) > 1) return (null, "Solo un ambiente del grupo debe aplicar las migraciones.");
+        if (EsEstaInstancia(configs))
+            return (null, "Este GAS-Admin no puede desplegarse a sí mismo: reemplazaría su propio contenedor a mitad del proceso. " +
+                          "Despliégalo desde tu GAS-Admin local.");
         if (await _db.EjecucionesDespliegue.AnyAsync(e => e.ServidorId == primero.ServidorId
                 && (e.Estado == EstadoEjecucion.EnCola || e.Estado == EstadoEjecucion.EnCurso)))
             return (null, "Ya hay un despliegue en curso en ese servidor; espera a que termine.");
@@ -150,6 +155,17 @@ public partial class ServicioDespliegues
             entidad: "EjecucionDespliegue", entidadId: e.Id.ToString());
         _cola.Encolar(e.Id);
         return (e, null);
+    }
+
+    /// <summary>
+    /// ¿Algún ambiente es este mismo GAS-Admin publicado? (su URL coincide con la dirección pública y no estamos
+    /// en Development). La instancia local sí puede desplegar el GAS-Admin de producción.
+    /// </summary>
+    private bool EsEstaInstancia(IEnumerable<ConfiguracionDespliegue> configs)
+    {
+        if (_entorno.IsDevelopment() || !Uri.TryCreate(_config["Seguridad:UrlPublica"], UriKind.Absolute, out var publica)) return false;
+        return configs.Any(c => Uri.TryCreate(c.Ambiente.Url, UriKind.Absolute, out var u)
+                                && string.Equals(u.Host, publica.Host, StringComparison.OrdinalIgnoreCase));
     }
 
     [GeneratedRegex(@"^[A-Za-z0-9._/\-]{1,150}$")]

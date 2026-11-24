@@ -1,5 +1,22 @@
 # Publicación de GAS-Admin (lista de verificación)
 
+## Producción actual: `https://gasadmin.globalappsuite.com.mx`
+
+GAS-Admin corre en el mismo VPS que los productos, en Docker, detrás de Nginx:
+
+- **DNS:** registro `A` `gasadmin` → IP del VPS (GoDaddy).
+- **Nginx:** `/etc/nginx/sites-available/gasadmin` → `proxy_pass http://127.0.0.1:5010`, con `X-Forwarded-For`/`X-Forwarded-Proto`,
+  `client_max_body_size 30M` y `proxy_read_timeout 300s`. Certificado de Let's Encrypt con `certbot --nginx` (renovación automática).
+- **Contenedor:** se compila con `deploy/gas-admin.Dockerfile` y se publica con el **despliegue automático desde la instancia local**
+  (una instancia no puede reemplazar su propio contenedor; el GAS-Admin publicado lo rechaza). Valores en
+  [despliegue-automatico.md](despliegue-automatico.md#valores-para-gas-admin).
+- **En el código:** fuera de Development se respetan `X-Forwarded-*` (el puerto solo escucha en 127.0.0.1), las llaves de
+  Data Protection se guardan en `DataProtection:Ruta` (por defecto `/keys`, volumen) y la cookie antifalsificación es `Secure`.
+
+> **Llave maestra:** la base `GAS` es la misma para la instancia local y la publicada, así que **producción usa la misma llave
+> maestra** que cifró las llaves capturadas (`~/.gas-admin/llave-maestra.key` de la Mac). Con otra, ninguna llave se podría leer.
+> Respáldala fuera del VPS.
+
 Pendientes y ajustes para el ambiente de producción. Ningún secreto va en `appsettings.json`.
 En el servidor solo se configuran la conexión y la llave maestra (variables de entorno, separador `__`);
 las llaves de servicios externos las captura un Admin en la aplicación y quedan cifradas en la base de datos.
