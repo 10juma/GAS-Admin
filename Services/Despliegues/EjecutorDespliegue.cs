@@ -228,7 +228,12 @@ public partial class EjecutorDespliegue
         Linea($"Compilando {imagen} ({dockerfile})…");
         var r = await ssh.EjecutarAsync(
             $"cd {dir}/src && test -f {Sh.Q(dockerfile)} || {{ echo 'No existe {dockerfile.Replace("'", "")} en el repositorio.'; exit 4; }}; " +
-            $"cd {dir}/src && DOCKER_BUILDKIT=1 docker build --pull --progress=plain -f {Sh.Q(dockerfile)} -t {Sh.Q(imagen)} .",
+            // BuildKit solo si el servidor tiene el componente buildx; si no, el compilador clásico (el que usa
+            // "docker build" a mano en ese caso). Forzar BuildKit sin buildx hace fallar la compilación.
+            $"cd {dir}/src && if docker buildx version >/dev/null 2>&1; then " +
+            $"DOCKER_BUILDKIT=1 docker build --pull --progress=plain -f {Sh.Q(dockerfile)} -t {Sh.Q(imagen)} .; " +
+            $"else echo 'Docker sin buildx: se usa el compilador clásico.'; " +
+            $"DOCKER_BUILDKIT=0 docker build --pull -f {Sh.Q(dockerfile)} -t {Sh.Q(imagen)} .; fi",
             Linea, LimiteCompilacion, ct);
         if (!r.Ok) throw new Paso($"La compilación de {imagen} falló; no se cambió ningún contenedor.");
         Linea($"Imagen {imagen} lista.");
