@@ -113,6 +113,51 @@
     }
 
     <div class="gas-dash__lateral">
+        @if (Model.PuedeVerSoporte)
+        {
+            <section class="gas-card">
+                <div class="gas-card__header">
+                    <div>
+                        <h2>@Iconos.Svg("note") Tickets pendientes</h2>
+                        <p>@Model.TicketsAbiertos abierto(s)@(Model.TicketsVencidos > 0 ? $" · {Model.TicketsVencidos} con SLA vencido" : "")@(Model.TicketsSinAsignar > 0 ? $" · {Model.TicketsSinAsignar} sin asignar" : "")</p>
+                    </div>
+                    <a asp-page="/Soporte/Index" asp-route-vista="@(Model.TicketsVencidos > 0 ? "vencidos" : "abiertos")" class="btn btn-sm btn-gas-outline">Ver todos @Iconos.Svg("arrow-right")</a>
+                </div>
+                @if (Model.TicketsPendientes.Count == 0)
+                {
+                    <div class="gas-empty">@Iconos.Svg("check") Sin tickets pendientes.</div>
+                }
+                else
+                {
+                    <ul class="gas-timeline">
+                        @foreach (var t in Model.TicketsPendientes)
+                        {
+                            var restante = t.Vence is { } v ? v - Model.Ahora : (TimeSpan?)null;
+                            var punto = t.Vencido ? "gas-timeline__dot--danger" : restante is { TotalHours: <= 4 } ? "gas-timeline__dot--warning" : "";
+                            <li>
+                                <span class="gas-timeline__dot @punto"></span>
+                                <div class="gas-timeline__body">
+                                    <a asp-page="/Soporte/Detalle/Index" asp-route-id="@t.Id" class="text-decoration-none"><strong>@t.Folio · @t.Asunto</strong></a>
+                                    <span>
+                                        @(t.Producto ?? "Sin producto") ·
+                                        @if (restante is { } r)
+                                        {
+                                            <span class="@(t.Vencido ? "text-danger fw-semibold" : "")">@(t.SinPrimeraRespuesta ? "1.ª resp." : "Resolver"): @(r.TotalMinutes < 0 ? $"vencido hace {GAS.Admin.Services.Soporte.ServicioSoporte.Duracion(-r)}" : $"quedan {GAS.Admin.Services.Soporte.ServicioSoporte.Duracion(r)}")</span>
+                                        }
+                                        else
+                                        {
+                                            <span>sin SLA</span>
+                                        }
+                                    </span>
+                                </div>
+                                <span class="gas-badge @Etiquetas.Badge(t.Prioridad)">@Etiquetas.Texto(t.Prioridad)</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+        }
+
         @if (Model.PuedeVerServicios)
         {
             <section class="gas-card">

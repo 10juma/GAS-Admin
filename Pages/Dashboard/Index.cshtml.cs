@@ -33,6 +33,16 @@ public class IndexModel : PageModel
     public bool PuedeVerUsuarios { get; private set; }
     public List<AuditLog> Actividad { get; private set; } = [];
 
+    // Tickets pendientes (abiertos), del vencimiento de SLA más cercano al más lejano.
+    public sealed record TicketPendiente(int Id, string Folio, string Asunto, Prioridad Prioridad, string? Producto,
+        bool SinPrimeraRespuesta, DateTime? Vence, bool Vencido);
+    public bool PuedeVerSoporte { get; private set; }
+    public int TicketsAbiertos { get; private set; }
+    public int TicketsVencidos { get; private set; }
+    public int TicketsSinAsignar { get; private set; }
+    public List<TicketPendiente> TicketsPendientes { get; private set; } = [];
+    public DateTime Ahora { get; } = DateTime.UtcNow;
+
     public sealed record Integrante(string Id, string Nombre, string Email, bool Activo, DateTime? UltimoAccesoUtc, IReadOnlyList<string> Roles);
     public List<Integrante> Equipo { get; private set; } = [];
 
@@ -73,6 +83,35 @@ public class IndexModel : PageModel
                 .OrderByDescending(a => a.FechaUtc)
                 .Take(10)
                 .ToListAsync();
+        }
+
+        PuedeVerSoporte = User.TienePermiso(Permisos.Soporte.Ver);
+        if (PuedeVerSoporte)
+        {
+            var abiertos = await _db.Tickets.AsNoTracking()
+                .Where(t => t.Estado != EstadoTicket.Resuelto && t.Estado != EstadoTicket.Cerrado)
+                .Select(t => new
+                {
+                    t.Id, t.Folio, t.Asunto, t.Prioridad, Producto = t.Producto != null ? t.Producto.Nombre : null,
+                    t.AsignadoId, t.PrimeraRespuestaUtc, t.VencePrimeraRespuestaUtc, t.VenceResolucionUtc, t.UltimaActividadUtc
+                })
+                .ToListAsync();
+            var pendientes = abiertos.Select(t =>
+            {
+                var sinRespuesta = t.PrimeraRespuestaUtc is null;
+                var vence = sinRespuesta ? t.VencePrimeraRespuestaUtc : t.VenceResolucionUtc;
+                var vencido = (sinRespuesta && t.VencePrimeraRespuestaUtc < Ahora) || t.VenceResolucionUtc < Ahora;
+                return (Fila: new TicketPendiente(t.Id, t.Folio, t.Asunto, t.Prioridad, t.Producto, sinRespuesta, vence, vencido), t.UltimaActividadUtc);
+            }).ToList();
+            TicketsAbiertos = pendientes.Count;
+            TicketsVencidos = pendientes.Count(p => p.Fila.Vencido);
+            TicketsSinAsignar = abiertos.Count(t => t.AsignadoId == null);
+            TicketsPendientes = pendientes
+                .OrderByDescending(p => p.Fila.Vencido)
+                .ThenBy(p => p.Fila.Vence ?? DateTime.MaxValue)
+                .ThenByDescending(p => p.Fila.Prioridad)
+                .ThenBy(p => p.UltimaActividadUtc)
+                .Take(5).Select(p => p.Fila).ToList();
         }
 
         PuedeVerUsuarios = User.TienePermiso(Permisos.Usuarios.Ver);
