@@ -242,11 +242,14 @@ public partial class EjecutorDespliegue
     private async Task RespaldarAsync(ClienteSsh ssh, string carpeta, string dir, ConfiguracionDespliegue c, int productoId, CancellationToken ct)
     {
         var vars = VariablesFinales(c, productoId);
-        if (!vars.TryGetValue("ConnectionStrings__DefaultConnection", out var cadena))
-            throw new Paso("Para respaldar se necesita la variable ConnectionStrings__DefaultConnection en el ambiente que migra.");
+        // DefaultConnection o Default (cada producto nombra distinto su cadena); si no, la única ConnectionStrings__* que haya.
+        var clave = new[] { "ConnectionStrings__DefaultConnection", "ConnectionStrings__Default" }.FirstOrDefault(vars.ContainsKey)
+                    ?? (vars.Keys.Where(k => k.StartsWith("ConnectionStrings__", StringComparison.Ordinal)).ToList() is [var unica] ? unica : null);
+        if (clave is null)
+            throw new Paso("Para respaldar se necesita la variable ConnectionStrings__DefaultConnection (o ConnectionStrings__Default) en el ambiente que migra.");
         SqlConnectionStringBuilder csb;
-        try { csb = new SqlConnectionStringBuilder(cadena); }
-        catch (ArgumentException) { throw new Paso("ConnectionStrings__DefaultConnection no es una cadena de conexión válida."); }
+        try { csb = new SqlConnectionStringBuilder(vars[clave]); }
+        catch (ArgumentException) { throw new Paso($"{clave} no es una cadena de conexión válida."); }
 
         var contenedor = string.IsNullOrWhiteSpace(c.ContenedorSql) ? csb.DataSource.Split(',')[0].Split('\\')[0] : c.ContenedorSql;
         var bd = string.IsNullOrWhiteSpace(c.BaseDatos) ? csb.InitialCatalog : c.BaseDatos;
