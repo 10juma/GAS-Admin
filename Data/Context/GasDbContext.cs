@@ -44,6 +44,8 @@ public class GasDbContext : IdentityDbContext<ApplicationUser, IdentityRole, str
     public DbSet<Servidor> Servidores => Set<Servidor>();
     public DbSet<ConfiguracionDespliegue> ConfiguracionesDespliegue => Set<ConfiguracionDespliegue>();
     public DbSet<EjecucionDespliegue> EjecucionesDespliegue => Set<EjecucionDespliegue>();
+    public DbSet<EjecucionRespaldo> EjecucionesRespaldo => Set<EjecucionRespaldo>();
+    public DbSet<ArchivoRespaldo> ArchivosRespaldo => Set<ArchivoRespaldo>();
     public DbSet<Dominio> Dominios => Set<Dominio>();
     public DbSet<Incidente> Incidentes => Set<Incidente>();
     public DbSet<Credencial> Credenciales => Set<Credencial>();
@@ -521,6 +523,31 @@ public class GasDbContext : IdentityDbContext<ApplicationUser, IdentityRole, str
             entity.Property(x => x.Resumen).HasMaxLength(1000);
             entity.Property(x => x.IniciadoPor).HasMaxLength(256);
             entity.HasIndex(x => x.CreadoUtc);
+        });
+
+        builder.Entity<EjecucionRespaldo>(entity =>
+        {
+            entity.ToTable("EjecucionesRespaldo");
+            entity.Property(x => x.Tipo).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.Estado).HasConversion<string>().HasMaxLength(20);
+            entity.Property(x => x.ClaveProgramada).HasMaxLength(10);
+            entity.Property(x => x.IniciadoPor).HasMaxLength(256);
+            entity.Property(x => x.Resumen).HasMaxLength(1000);
+            entity.HasIndex(x => x.ClaveProgramada).IsUnique().HasFilter("[ClaveProgramada] IS NOT NULL");
+            entity.HasIndex(x => x.InicioUtc);
+        });
+
+        builder.Entity<ArchivoRespaldo>(entity =>
+        {
+            entity.ToTable("ArchivosRespaldo");
+            entity.HasOne(x => x.Ejecucion).WithMany(e => e.Archivos).HasForeignKey(x => x.EjecucionId).OnDelete(DeleteBehavior.Cascade);
+            entity.Property(x => x.Producto).HasMaxLength(150);
+            entity.Property(x => x.BaseDatos).HasMaxLength(128);
+            entity.Property(x => x.Nombre).HasMaxLength(500);
+            entity.Property(x => x.IdArchivoB2).HasMaxLength(200);
+            entity.Property(x => x.Sha256).HasMaxLength(64);
+            entity.Property(x => x.Error).HasMaxLength(1000);
+            entity.HasIndex(x => new { x.BorradoUtc, x.RetenerHastaUtc });
         });
 
         builder.Entity<Dominio>(entity =>

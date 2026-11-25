@@ -127,6 +127,13 @@ public sealed class ClienteSsh : IDisposable
         _sftp.ChangePermissions(ruta, permisos);
     }
 
+    /// <summary>Descarga un archivo del servidor (ruta relativa al home del usuario o absoluta).</summary>
+    public async Task DescargarAsync(string ruta, Stream destino, CancellationToken ct)
+    {
+        if (!_sftp.IsConnected) await _sftp.ConnectAsync(ct);
+        await _sftp.DownloadFileAsync(ruta, destino, ct);
+    }
+
     public void Dispose()
     {
         if (_sftp.IsConnected) _sftp.Disconnect();

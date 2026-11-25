@@ -242,32 +242,17 @@ public partial class EjecutorDespliegue
     private async Task RespaldarAsync(ClienteSsh ssh, string carpeta, string dir, ConfiguracionDespliegue c, int productoId, CancellationToken ct)
     {
         var vars = VariablesFinales(c, productoId);
-        // DefaultConnection o Default (cada producto nombra distinto su cadena); si no, la única ConnectionStrings__* que haya.
-        var clave = new[] { "ConnectionStrings__DefaultConnection", "ConnectionStrings__Default" }.FirstOrDefault(vars.ContainsKey)
-                    ?? (vars.Keys.Where(k => k.StartsWith("ConnectionStrings__", StringComparison.Ordinal)).ToList() is [var unica] ? unica : null);
-        if (clave is null)
-            throw new Paso("Para respaldar se necesita la variable ConnectionStrings__DefaultConnection (o ConnectionStrings__Default) en el ambiente que migra.");
-        SqlConnectionStringBuilder csb;
-        try { csb = new SqlConnectionStringBuilder(vars[clave]); }
-        catch (ArgumentException) { throw new Paso($"{clave} no es una cadena de conexión válida."); }
-
-        var contenedor = string.IsNullOrWhiteSpace(c.ContenedorSql) ? csb.DataSource.Split(',')[0].Split('\\')[0] : c.ContenedorSql;
-        var bd = string.IsNullOrWhiteSpace(c.BaseDatos) ? csb.InitialCatalog : c.BaseDatos;
-        if (string.IsNullOrWhiteSpace(bd)) throw new Paso("No se sabe qué base respaldar: captura la base de datos en la configuración.");
-        var archivo = $"gas-{Slug(bd)}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.bak";
-        Linea($"Respaldando la base {bd} (contenedor {contenedor}) en /var/opt/mssql/backup/{archivo}…");
+        var (origen, error) = OrigenBaseDatos.Resolver(c, vars);
+        if (origen is null) throw new Paso(error!.Replace("en el ambiente.", "en el ambiente que migra."));
+        var archivo = $"gas-{Slug(origen.BaseDatos)}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.bak";
+        Linea($"Respaldando la base {origen.BaseDatos} (contenedor {origen.Contenedor}) en /var/opt/mssql/backup/{archivo}…");
 
         // La contraseña va en un archivo temporal (0600) y por variable de entorno, nunca en la línea de comandos.
-        await using (var ms = new MemoryStream(Encoding.UTF8.GetBytes($"SQLCMDPASSWORD={Sh.Q(csb.Password)}\n")))
+        await using (var ms = new MemoryStream(Encoding.UTF8.GetBytes(origen.ArchivoEnv)))
             await ssh.SubirAsync(ms, $"{carpeta}/respaldo.env", 600, ct);
-        var sql = $"BACKUP DATABASE [{bd.Replace("]", "]]")}] TO DISK = N'/var/opt/mssql/backup/{archivo}' WITH COPY_ONLY, INIT";
-        var q = Sh.Q(contenedor);
         var r = await ssh.EjecutarAsync(
-            $"set -a; . {dir}/respaldo.env; set +a; rm -f {dir}/respaldo.env; " +
-            $"P=/opt/mssql-tools18/bin/sqlcmd; C=-C; docker exec {q} test -x $P || {{ P=/opt/mssql-tools/bin/sqlcmd; C=; }}; " +
-            $"docker exec {q} mkdir -p /var/opt/mssql/backup && " +
-            $"docker exec -e SQLCMDPASSWORD {q} $P -S localhost -U {Sh.Q(csb.UserID)} $C -b -Q {Sh.Q(sql)}; RC=$?; " +
-            $"docker exec {q} find /var/opt/mssql/backup -name 'gas-*.bak' -mtime +14 -delete >/dev/null 2>&1; exit $RC",
+            origen.ComandoRespaldo($"{dir}/respaldo.env", archivo, conChecksum: false) + "; RC=$?; " +
+            $"docker exec {Sh.Q(origen.Contenedor)} find /var/opt/mssql/backup -name 'gas-*.bak' -mtime +14 -delete >/dev/null 2>&1; exit $RC",
             Linea, TimeSpan.FromMinutes(20), ct);
         await ssh.EjecutarAsync($"rm -f {dir}/respaldo.env", null, LimiteComando, CancellationToken.None);
         if (!r.Ok)

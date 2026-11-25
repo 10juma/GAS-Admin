@@ -43,6 +43,9 @@ public static class AccionesAuditoria
     public const string ServidorPreparado = "ServidorPreparado";
     public const string DespliegueIniciado = "DespliegueIniciado";
     public const string DespliegueTerminado = "DespliegueTerminado";
+    public const string RespaldoIniciado = "RespaldoIniciado";
+    public const string RespaldoTerminado = "RespaldoTerminado";
+    public const string RespaldoDescargado = "RespaldoDescargado";
 
     public static readonly IReadOnlyList<AccionInfo> Catalogo =
     [
@@ -77,6 +80,9 @@ public static class AccionesAuditoria
         new(ServidorPreparado, "Servidor preparado para despliegues", TonoAccion.Advertencia, CategoriaAccion.Accesos),
         new(DespliegueIniciado, "Despliegue iniciado", TonoAccion.Advertencia, CategoriaAccion.Datos),
         new(DespliegueTerminado, "Despliegue terminado", TonoAccion.Neutro, CategoriaAccion.Datos),
+        new(RespaldoIniciado, "Respaldo iniciado", TonoAccion.Neutro, CategoriaAccion.Datos),
+        new(RespaldoTerminado, "Respaldo terminado", TonoAccion.Neutro, CategoriaAccion.Datos),
+        new(RespaldoDescargado, "Respaldo descargado", TonoAccion.Advertencia, CategoriaAccion.Accesos),
     ];
 
     public static readonly IReadOnlyList<(CategoriaAccion Categoria, string Nombre)> Categorias =

@@ -197,6 +197,17 @@ public static class Etiquetas
         EstadoEjecucion.Revertido => "Revertido",
         EstadoEjecucion.Interrumpido => "Interrumpido",
 
+        EstadoRespaldo.EnCurso => "En curso",
+        EstadoRespaldo.Exitoso => "Exitoso",
+        EstadoRespaldo.ConErrores => "Con errores",
+        EstadoRespaldo.Fallido => "Falló",
+        EstadoRespaldo.Interrumpido => "Interrumpido",
+
+        TipoRespaldo.Diario => "Diario",
+        TipoRespaldo.Semanal => "Semanal",
+        TipoRespaldo.Mensual => "Mensual",
+        TipoRespaldo.Manual => "Manual",
+
         EstadoDominio.Activo => "Activo",
         EstadoDominio.Cancelado => "Cancelado",
         EstadoDominio.Transferido => "Transferido",
@@ -254,6 +265,11 @@ public static class Etiquetas
         LineaNegocio.Servicios or OrigenMovimiento.Cotizacion => "info",
         EstadoAmbiente.Operativo or ResultadoDespliegue.Exitoso or EstadoDominio.Activo or EstadoIncidente.Resuelto
             or EstadoCredencial.Activa or EstadoServidor.Listo or EstadoEjecucion.Exitoso => "success",
+        EstadoRespaldo.Exitoso => "success",
+        EstadoRespaldo.EnCurso or TipoRespaldo.Semanal => "info",
+        EstadoRespaldo.ConErrores or EstadoRespaldo.Interrumpido => "warning",
+        EstadoRespaldo.Fallido => "danger",
+        TipoRespaldo.Mensual => "violet",
         EstadoEjecucion.EnCola or EstadoEjecucion.EnCurso => "info",
         EstadoServidor.SinPreparar or EstadoEjecucion.Revertido or EstadoEjecucion.Interrumpido => "warning",
         EstadoServidor.ConError or EstadoEjecucion.Fallido => "danger",

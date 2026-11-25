@@ -241,6 +241,68 @@ namespace GAS.Admin.Data.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("GAS.Admin.Models.Entities.ArchivoRespaldo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BaseDatos")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("BorradoUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("Bytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("BytesOriginal")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreadoUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EjecucionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("IdArchivoB2")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Producto")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime>("RetenerHastaUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Sha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EjecucionId");
+
+                    b.HasIndex("BorradoUtc", "RetenerHastaUtc");
+
+                    b.ToTable("ArchivosRespaldo", (string)null);
+                });
+
             modelBuilder.Entity("GAS.Admin.Models.Entities.ArticuloConocimiento", b =>
                 {
                     b.Property<int>("Id")
@@ -1513,6 +1575,58 @@ namespace GAS.Admin.Data.Migrations
                     b.HasIndex("ServidorId");
 
                     b.ToTable("EjecucionesDespliegue", (string)null);
+                });
+
+            modelBuilder.Entity("GAS.Admin.Models.Entities.EjecucionRespaldo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Bitacora")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ClaveProgramada")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("FinUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IniciadoPor")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("InicioUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Resumen")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClaveProgramada")
+                        .IsUnique()
+                        .HasFilter("[ClaveProgramada] IS NOT NULL");
+
+                    b.HasIndex("InicioUtc");
+
+                    b.ToTable("EjecucionesRespaldo", (string)null);
                 });
 
             modelBuilder.Entity("GAS.Admin.Models.Entities.Empresa", b =>
@@ -3813,6 +3927,17 @@ namespace GAS.Admin.Data.Migrations
                     b.Navigation("Repositorio");
                 });
 
+            modelBuilder.Entity("GAS.Admin.Models.Entities.ArchivoRespaldo", b =>
+                {
+                    b.HasOne("GAS.Admin.Models.Entities.EjecucionRespaldo", "Ejecucion")
+                        .WithMany("Archivos")
+                        .HasForeignKey("EjecucionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Ejecucion");
+                });
+
             modelBuilder.Entity("GAS.Admin.Models.Entities.ArticuloConocimiento", b =>
                 {
                     b.HasOne("GAS.Admin.Models.Entities.Producto", "Producto")
@@ -4642,6 +4767,11 @@ namespace GAS.Admin.Data.Migrations
                     b.Navigation("Personas");
 
                     b.Navigation("Puestos");
+                });
+
+            modelBuilder.Entity("GAS.Admin.Models.Entities.EjecucionRespaldo", b =>
+                {
+                    b.Navigation("Archivos");
                 });
 
             modelBuilder.Entity("GAS.Admin.Models.Entities.Oportunidad", b =>

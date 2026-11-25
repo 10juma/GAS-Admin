@@ -45,6 +45,8 @@ public static class Iconos
         ["plug"] = "<path d='M12 22v-5M9 8V2M15 8V2M18 8v5a6 6 0 0 1-12 0V8Z'/>",
         ["card"] = "<rect x='2' y='5' width='20' height='14' rx='2'/><path d='M2 10h20'/>",
         ["globe"] = "<circle cx='12' cy='12' r='10'/><path d='M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z'/>",
+        ["database"] = "<ellipse cx='12' cy='5' rx='9' ry='3'/><path d='M3 5v14a9 3 0 0 0 18 0V5'/><path d='M3 12a9 3 0 0 0 18 0'/>",
+        ["download"] = "<path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><path d='m7 10 5 5 5-5'/><path d='M12 15V3'/>",
         ["server"] = "<rect x='2' y='3' width='20' height='7' rx='2'/><rect x='2' y='14' width='20' height='7' rx='2'/><path d='M6 6.5h.01M6 17.5h.01'/>",
         ["git"] = "<circle cx='18' cy='18' r='3'/><circle cx='6' cy='6' r='3'/><path d='M13 6h3a2 2 0 0 1 2 2v7M6 9v12'/>",
         ["bug"] = "<path d='M8 2l1.9 1.9M16 2l-1.9 1.9M9 7.1V6a3 3 0 1 1 6 0v1.1'/><path d='M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6ZM12 20v-9M6 13H2M22 13h-4M3 21l3-3M21 21l-3-3M3 7l3 3M21 7l-3 3'/>",

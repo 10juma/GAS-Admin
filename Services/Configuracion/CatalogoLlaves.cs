@@ -60,6 +60,26 @@ public static partial class CatalogoLlaves
                 v => SlugRegex().IsMatch(v) ? null : "Usa solo minúsculas, números y guiones."),
         ]);
 
+    // ---------- Respaldos ----------
+    public static readonly GrupoLlaves Respaldos = new("respaldos", "Respaldos en Backblaze B2", "database",
+        "Cada noche GAS-Admin respalda las bases, las comprime, las cifra y las sube a este bucket con bloqueo contra borrado.",
+        [
+            new("Respaldos:B2:Bucket", "Bucket", false, "gas-respaldos-sql", "Nombre exacto del bucket privado, con Object Lock activado.",
+                v => BucketB2Regex().IsMatch(v) ? null : "Usa de 6 a 50 letras, números o guiones."),
+            new("Respaldos:B2:IdLlave", "Key ID", false, "005…", "En Backblaze › Application Keys, el keyID de la llave limitada a este bucket.",
+                v => v.Length is >= 12 and <= 40 && v.All(char.IsAsciiLetterOrDigit) ? null : "El Key ID son letras y números (unos 25 caracteres)."),
+            new("Respaldos:B2:Llave", "Application Key", true, "K005…", "Se muestra una sola vez al crear la llave en Backblaze.",
+                v => v.Length is >= 20 and <= 64 && !v.Any(char.IsWhiteSpace) ? null : "La Application Key son unos 31 caracteres sin espacios."),
+            new("Respaldos:LlaveCifrado", "Llave de cifrado", true, null,
+                "Con ella se cifran los respaldos. Genérala, guárdala en tu gestor de contraseñas y no la pierdas: sin ella los respaldos no se pueden abrir.",
+                v => v.Length >= 32 ? null : "Usa al menos 32 caracteres (el botón Generar crea una segura).", Generable: true),
+            new("Respaldos:Hora", "Hora del respaldo diario", false, "03:00", "Hora del centro de México, formato 24 h. Si se deja vacía, 03:00.",
+                v => TimeOnly.TryParseExact(v, "HH:mm", out _) ? null : "Usa el formato HH:mm, por ejemplo 03:00.", Obligatorio: false),
+            new("Respaldos:CorreoAlertas", "Correo para alertas", false, "tu@tudominio.com",
+                "Si un respaldo falla, GAS-Admin avisa a este correo.", ValidarCorreo, Obligatorio: false),
+        ],
+        "Si reemplazas la llave de cifrado, los respaldos anteriores se siguen abriendo solo con la llave anterior: guarda las dos.");
+
     // ---------- Por producto ----------
     public static GrupoLlaves Stripe(string clave, string producto) => new($"stripe:{clave}", $"Stripe · {producto}", "card",
         "Llave para leer suscriptores, suscripciones y facturas de este producto.",
@@ -77,7 +97,7 @@ public static partial class CatalogoLlaves
     public static readonly IReadOnlyList<GrupoLlaves> DeGasAdmin = [Correo, Soporte, Publica];
     public static readonly IReadOnlyList<GrupoLlaves> DeIntegraciones = [UptimeRobot, GitHub, Sentry];
 
-    public static GrupoLlaves? Fijo(string id) => DeGasAdmin.Concat(DeIntegraciones).FirstOrDefault(g => g.Id == id);
+    public static GrupoLlaves? Fijo(string id) => DeGasAdmin.Concat(DeIntegraciones).Append(Respaldos).FirstOrDefault(g => g.Id == id);
 
     private static string? ValidarCorreo(string v) => MailAddress.TryCreate(v, out var m) && m.Address == v ? null : "Escribe un correo válido.";
 
@@ -89,4 +109,7 @@ public static partial class CatalogoLlaves
 
     [GeneratedRegex("^[a-z0-9][a-z0-9-]{0,49}$")]
     private static partial Regex SlugRegex();
+
+    [GeneratedRegex("^[A-Za-z0-9-]{6,50}$")]
+    private static partial Regex BucketB2Regex();
 }

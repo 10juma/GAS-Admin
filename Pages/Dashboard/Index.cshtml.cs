@@ -21,6 +21,8 @@ public class IndexModel : PageModel
     public Dictionary<string, decimal> CostoMensual { get; private set; } = [];
     public int Renovaciones30 { get; private set; }
     public bool PuedeVerServicios { get; private set; }
+    /// <summary>Aviso cuando los respaldos de las bases no están al día (null si todo bien).</summary>
+    public string? AvisoRespaldos { get; private set; }
     public sealed record Renovacion(string Servicio, DateOnly Fecha, int Dias, decimal? Costo, string Moneda);
     public List<Renovacion> ProximasRenovaciones { get; private set; } = [];
 
@@ -69,6 +71,19 @@ public class IndexModel : PageModel
         Renovaciones30 = renovaciones.Count(r => r.Dias <= 30);
         ProximasRenovaciones = renovaciones.Take(6).ToList();
         PuedeVerServicios = User.TienePermiso(Permisos.Infraestructura.Ver);
+        if (PuedeVerServicios)
+        {
+            var hace36 = DateTime.UtcNow.AddHours(-36);
+            var ultimo = await _db.EjecucionesRespaldo.AsNoTracking().OrderByDescending(e => e.Id)
+                .Select(e => new { e.Estado, e.InicioUtc }).FirstOrDefaultAsync();
+            var ultimoExito = await _db.EjecucionesRespaldo.AsNoTracking().Where(e => e.Estado == Models.Entities.EstadoRespaldo.Exitoso)
+                .MaxAsync(e => (DateTime?)e.InicioUtc);
+            AvisoRespaldos = ultimo is null ? "Aún no hay respaldos de las bases fuera del servidor."
+                : ultimo.Estado is Models.Entities.EstadoRespaldo.Fallido or Models.Entities.EstadoRespaldo.ConErrores or Models.Entities.EstadoRespaldo.Interrumpido
+                    ? "El último respaldo de las bases no terminó bien."
+                : ultimoExito is null || ultimoExito < hace36 ? "No hay un respaldo exitoso de las bases en las últimas 36 horas."
+                : null;
+        }
 
         UsuariosTotales = await _db.Users.CountAsync();
         UsuariosActivos = await _db.Users.CountAsync(u => u.Activo);

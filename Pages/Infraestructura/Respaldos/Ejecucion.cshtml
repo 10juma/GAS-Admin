@@ -1,0 +1,99 @@
+@page "{id:int}"
+@model GAS.Admin.Pages.Infraestructura.Respaldos.EjecucionModel
+@using GAS.Admin.Services.Respaldos
+@{
+    var e = Model.Ejecucion;
+    ViewData["Title"] = $"Respaldo #{e.Id}";
+    ViewData["Seccion"] = "Infraestructura";
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Respaldo #@e.Id</h1>
+        <p>@Etiquetas.Texto(e.Tipo) · por @e.IniciadoPor, @Fechas.Formato(e.InicioUtc)</p>
+    </div>
+    <a asp-page="Index" class="btn btn-gas-outline">@Iconos.Svg("arrow-left") Respaldos</a>
+</div>
+
+<section class="gas-card mb-3">
+    <div class="gas-card__body">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <span id="resp-estado" class="gas-badge @Etiquetas.Badge(e.Estado)">@Etiquetas.Texto(e.Estado)</span>
+            <span id="resp-duracion" class="small text-muted ms-auto">@GAS.Admin.Pages.Infraestructura.Despliegues.EjecucionModel.Duracion((e.FinUtc ?? DateTime.UtcNow) - e.InicioUtc)</span>
+        </div>
+        <div id="resp-resumen" class="small mt-2 @(e.Resumen is null ? "d-none" : "")">@e.Resumen</div>
+    </div>
+</section>
+
+@if (e.Archivos.Count > 0)
+{
+    <section class="gas-card mb-3">
+        <div class="gas-card__header">
+            <div><h2>@Iconos.Svg("database") Archivos</h2><p>La descarga baja el archivo de B2, comprueba su firma y lo entrega descifrado, listo para RESTORE DATABASE.</p></div>
+        </div>
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>Base</th><th>Tamaño</th><th>Se conserva hasta</th><th>Estado</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var a in e.Archivos.OrderBy(x => x.Producto).ThenBy(x => x.BaseDatos))
+                    {
+                        <tr>
+                            <td>
+                                <div><strong>@a.BaseDatos</strong> <span class="text-muted">· @a.Producto</span></div>
+                                @if (a.Error is null) { <div class="small text-muted text-break">@a.Nombre</div> }
+                            </td>
+                            <td>@(a.Error is null ? $"{ServicioRespaldos.Mb(a.BytesOriginal)} → {ServicioRespaldos.Mb(a.Bytes)}" : "—")</td>
+                            <td>@(a.Error is null ? Fechas.Formato(a.RetenerHastaUtc) : "—")</td>
+                            <td>
+                                @if (a.Error is not null) { <span class="gas-badge gas-badge--danger">Falló</span><div class="small text-muted mt-1">@a.Error</div> }
+                                else if (a.BorradoUtc is not null) { <span class="gas-badge gas-badge--plain">Vencido y borrado</span> }
+                                else { <span class="gas-badge gas-badge--success">En B2</span> }
+                            </td>
+                            <td class="text-end">
+                                @if (Model.EsAdmin && a.Error is null && a.BorradoUtc is null)
+                                {
+                                    <a class="btn btn-sm btn-gas-outline text-nowrap" href="@Url.Page("Ejecucion", "Descargar", new { id = e.Id, archivo = a.Id })">@Iconos.Svg("download") Descargar .bak</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+<section class="gas-card">
+    <div class="gas-card__header">
+        <div><h2>@Iconos.Svg("note") Bitácora</h2><p id="resp-vivo">@(e.Terminada ? "Terminada." : "Se actualiza sola mientras corre; puedes cerrar esta página, el respaldo sigue.")</p></div>
+    </div>
+    <pre id="resp-bitacora" class="m-0 p-3 small" style="background:#0f172a;color:#e2e8f0;white-space:pre-wrap;word-break:break-word;max-height:70vh;overflow:auto;border-radius:0 0 12px 12px;">@(e.Bitacora.Length == 0 ? "Iniciando…" : e.Bitacora)</pre>
+</section>
+
+@section Scripts {
+<script>
+(() => {
+    const pre = document.getElementById("resp-bitacora");
+    pre.scrollTop = pre.scrollHeight;
+    if (@(e.Terminada ? "true" : "false")) return;
+    const url = "@Html.Raw(Url.Page("Ejecucion", "Estado", new { id = e.Id }))";
+    async function actualizar() {
+        try {
+            const r = await fetch(url, { headers: { "Accept": "application/json" } });
+            if (!r.ok) throw new Error();
+            const d = await r.json();
+            if (d.bitacora) { pre.textContent = d.bitacora; pre.scrollTop = pre.scrollHeight; }
+            const badge = document.getElementById("resp-estado");
+            badge.className = "gas-badge " + d.badge;
+            badge.textContent = d.texto;
+            document.getElementById("resp-duracion").textContent = d.duracion;
+            const res = document.getElementById("resp-resumen");
+            if (d.resumen) { res.textContent = d.resumen; res.classList.remove("d-none"); }
+            if (d.terminada) { location.reload(); return; }
+        } catch { /* se reintenta */ }
+        setTimeout(actualizar, 2000);
+    }
+    setTimeout(actualizar, 1500);
+})();
+</script>
+}

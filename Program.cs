@@ -189,6 +189,12 @@ builder.Services.AddScoped<GAS.Admin.Services.Despliegues.ServicioDespliegues>()
 builder.Services.AddScoped<GAS.Admin.Services.Despliegues.EjecutorDespliegue>();
 builder.Services.AddSingleton<GAS.Admin.Services.Despliegues.ColaDespliegues>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<GAS.Admin.Services.Despliegues.ColaDespliegues>());
+
+// Respaldos de las bases en Backblaze B2 (cifrados, con bloqueo contra borrado). Credenciales en LlavesConfiguracion (Respaldos:*).
+builder.Services.AddHttpClient("respaldos", client => client.Timeout = TimeSpan.FromMinutes(30));
+builder.Services.AddScoped<GAS.Admin.Services.Respaldos.ServicioRespaldos>();
+builder.Services.AddSingleton<GAS.Admin.Services.Respaldos.ProgramadorRespaldos>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<GAS.Admin.Services.Respaldos.ProgramadorRespaldos>());
 builder.Services.AddScoped<GAS.Admin.Services.Navegacion.ContadoresMenu>();
 builder.Services.AddScoped<GAS.Admin.Services.Correo.PlantillaCorreo>();
 

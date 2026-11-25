@@ -28,6 +28,14 @@
     </div>
 </div>
 
+@if (Model.AvisoRespaldos is not null)
+{
+    <a asp-page="/Infraestructura/Respaldos/Index" class="gas-callout mb-4 text-decoration-none">
+        <span class="gas-icon">@Iconos.Svg("database")</span>
+        <div class="gas-callout__text"><strong>Respaldos</strong>@Model.AvisoRespaldos Revisa Infraestructura › Respaldos.</div>
+    </a>
+}
+
 <div class="gas-grid gas-grid--4 mb-4">
     <a asp-page="/Productos/Index" class="gas-card gas-stat text-decoration-none">
         <span class="gas-stat__icon">@Iconos.Svg("box")</span>

@@ -1,0 +1,150 @@
+@page
+@model GAS.Admin.Pages.Infraestructura.Respaldos.IndexModel
+@using GAS.Admin.Services.Respaldos
+@{
+    ViewData["Title"] = "Respaldos";
+    ViewData["Seccion"] = "Infraestructura";
+    var ahoraLocal = Fechas.ALocal(DateTime.UtcNow);
+}
+
+<div class="gas-page-header">
+    <div>
+        <h1><partial name="_IconoPagina" />Respaldos</h1>
+        <p>Cada noche GAS-Admin respalda las bases de datos, las comprime, las cifra y las guarda en Backblaze B2, fuera del servidor y con bloqueo contra borrado.</p>
+    </div>
+    @if (Model.EsAdmin && Model.Configurado)
+    {
+        <form method="post" asp-page-handler="Respaldar">
+            <button type="submit" class="btn btn-gas" disabled="@Model.EnCurso">@Iconos.Svg("database") Respaldar ahora</button>
+        </form>
+    }
+</div>
+
+@if (!Model.Configurado)
+{
+    <div class="gas-callout mb-4">
+        <span class="gas-icon">@Iconos.Svg("alert")</span>
+        <div class="gas-callout__text">
+            <strong>Respaldos sin configurar</strong>
+            Captura el bucket y la llave de Backblaze B2 y genera la llave de cifrado. Hasta entonces no se respalda nada fuera del servidor.
+        </div>
+    </div>
+}
+else if (Model.UltimoExitoso is null || Model.UltimoExitoso.InicioUtc < DateTime.UtcNow.AddHours(-36))
+{
+    <div class="gas-callout mb-4">
+        <span class="gas-icon">@Iconos.Svg("alert")</span>
+        <div class="gas-callout__text">
+            <strong>@(Model.UltimoExitoso is null ? "Todavía no hay un respaldo exitoso" : "El último respaldo exitoso tiene más de 36 horas")</strong>
+            @(Model.UltimoExitoso is null ? "Usa Respaldar ahora para hacer el primero y comprobar que todo funciona." : $"Fue {Fechas.Relativo(Model.UltimoExitoso.InicioUtc)}. Revisa la bitácora de los últimos.")
+        </div>
+    </div>
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <section class="gas-card h-100">
+            <div class="gas-card__header">
+                <div><h2>@Iconos.Svg("key") Configuración</h2><p>Backblaze B2 y llave de cifrado, guardadas cifradas en GAS-Admin.</p></div>
+                @if (Model.EsAdmin)
+                {
+                    <button type="button" class="btn btn-sm btn-gas-outline text-nowrap"
+                            data-modal-url="@Url.Page("/Organizacion/Configuracion/Index", "Llaves", new { grupo = Model.GrupoLlaves, volver = Url.Page("Index") })">
+                        @Iconos.Svg("pencil") Configurar
+                    </button>
+                }
+            </div>
+            <div class="gas-card__body">
+                <dl class="row mb-0 small">
+                    <dt class="col-5">Backblaze B2</dt>
+                    <dd class="col-7">
+                        @if (Model.B2) { <span class="gas-badge gas-badge--success">@Iconos.Svg("check") @Model.Bucket</span> }
+                        else { <span class="gas-badge gas-badge--plain">Sin configurar</span> }
+                    </dd>
+                    <dt class="col-5">Llave de cifrado</dt>
+                    <dd class="col-7">
+                        @if (Model.Cifrado) { <span class="gas-badge gas-badge--success">@Iconos.Svg("lock") Configurada</span> }
+                        else { <span class="gas-badge gas-badge--plain">Sin configurar</span> }
+                    </dd>
+                    <dt class="col-5">Horario</dt>
+                    <dd class="col-7">
+                        Diario a las @Model.Hora.ToString("HH:mm") (centro de México)
+                        @if (!Model.Programa) { <div class="text-muted">Esta instancia no programa respaldos (solo producción lo hace).</div> }
+                        else if (Model.Proximo is { } p) { <div class="text-muted">Próximo: @(p <= ahoraLocal ? "en el siguiente minuto" : p.ToString("dd/MM/yyyy HH:mm"))</div> }
+                    </dd>
+                    <dt class="col-5">Retención</dt>
+                    <dd class="col-7">Diarios 14 días · semanales (domingo) 8 semanas · mensuales (día 1) 12 meses</dd>
+                    <dt class="col-5">Alertas</dt>
+                    <dd class="col-7">@(Model.CorreoAlertas ?? "Sin correo: los fallos solo se verán aquí.")</dd>
+                    <dt class="col-5">Guardado en B2</dt>
+                    <dd class="col-7">@Model.ArchivosGuardados archivo(s) · @ServicioRespaldos.Mb(Model.BytesGuardados)</dd>
+                </dl>
+            </div>
+        </section>
+    </div>
+    <div class="col-lg-6">
+        <section class="gas-card h-100">
+            <div class="gas-card__header">
+                <div><h2>@Iconos.Svg("database") Bases incluidas</h2><p>Salen solas de los ambientes con despliegue automático.</p></div>
+            </div>
+            <div class="gas-card__body">
+                @if (Model.Bases.Count == 0)
+                {
+                    <div class="text-muted small">Ningún ambiente con despliegue automático tiene una variable ConnectionStrings__*.</div>
+                }
+                else
+                {
+                    <ul class="list-unstyled mb-0 small">
+                        @foreach (var b in Model.Bases)
+                        {
+                            <li class="mb-1">@Iconos.Svg("database") <strong>@b.Origen.BaseDatos</strong> <span class="text-muted">· @b.Producto · @b.Servidor.Nombre · usuario @b.Origen.Usuario</span></li>
+                        }
+                    </ul>
+                }
+                @foreach (var a in Model.Avisos)
+                {
+                    <div class="small text-warning-emphasis mt-2">@Iconos.Svg("alert") @a</div>
+                }
+            </div>
+        </section>
+    </div>
+</div>
+
+<section class="gas-card">
+    <div class="gas-card__header">
+        <div><h2>@Iconos.Svg("clock") Historial</h2><p>Últimas @Model.Ejecuciones.Count corridas</p></div>
+    </div>
+    @if (Model.Ejecuciones.Count == 0)
+    {
+        <div class="gas-empty">@Iconos.Svg("database") Aún no hay respaldos.</div>
+    }
+    else
+    {
+        <div class="gas-table-wrap">
+            <table class="gas-table">
+                <thead><tr><th>#</th><th>Tipo</th><th>Estado</th><th>Bases</th><th>Tamaño</th><th>Inició</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                    @foreach (var f in Model.Ejecuciones)
+                    {
+                        var e = f.Ejecucion;
+                        <tr>
+                            <td class="text-muted">#@e.Id</td>
+                            <td><span class="gas-badge @Etiquetas.Badge(e.Tipo)">@Etiquetas.Texto(e.Tipo)</span></td>
+                            <td>
+                                <span class="gas-badge @Etiquetas.Badge(e.Estado)">@Etiquetas.Texto(e.Estado)</span>
+                                @if (e.Resumen is not null && e.Estado != EstadoRespaldo.Exitoso) { <div class="small text-muted mt-1 text-truncate" style="max-width: 280px;" title="@e.Resumen">@e.Resumen</div> }
+                            </td>
+                            <td>@f.Correctas@(f.Errores > 0 ? $" · {f.Errores} con error" : "")</td>
+                            <td>@(f.Bytes > 0 ? ServicioRespaldos.Mb(f.Bytes) : "—")</td>
+                            <td>
+                                <div class="small">@Fechas.Relativo(e.InicioUtc)</div>
+                                <div class="small text-muted">@e.IniciadoPor</div>
+                            </td>
+                            <td class="text-end"><a asp-page="Ejecucion" asp-route-id="@e.Id" class="btn btn-sm btn-gas-outline">@Iconos.Svg("eye") Ver</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

@@ -18,7 +18,7 @@ public class ServicioLlaves
 
     /// <summary>Solo estas rutas se pueden capturar en pantalla (nunca la conexión a la BD ni la llave maestra).</summary>
     private static readonly string[] Permitidas =
-        ["Resend:", "Soporte:", "Seguridad:UrlPublica", "Stripe:Claves:", "Integraciones:", "Productos:Conexiones:", "Despliegue:"];
+        ["Resend:", "Soporte:", "Seguridad:UrlPublica", "Stripe:Claves:", "Integraciones:", "Productos:Conexiones:", "Despliegue:", "Respaldos:"];
 
     public static bool Permitida(string clave) =>
         Permitidas.Any(p => clave.StartsWith(p, StringComparison.OrdinalIgnoreCase)) && !clave.Contains("..") && clave.Length <= 200;
