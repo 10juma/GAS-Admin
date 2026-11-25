@@ -65,6 +65,30 @@ public static class EndpointsSoporte
         return false;
     }
 
+    /// <summary>Primer Reply-To del correo recibido (campo reply_to como texto o lista, o la cabecera Reply-To).</summary>
+    public static string? ResponderA(JsonElement correo)
+    {
+        if (correo.Prop("reply_to") is { } r)
+        {
+            if (r.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(r.GetString())) return r.GetString();
+            if (r.ValueKind == JsonValueKind.Array)
+                foreach (var x in r.EnumerateArray())
+                    if (x.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(x.GetString())) return x.GetString();
+        }
+        if (correo.Prop("headers") is { ValueKind: JsonValueKind.Object } h)
+            foreach (var c in h.EnumerateObject())
+                if (c.Name.Equals("reply-to", StringComparison.OrdinalIgnoreCase) && c.Value.ValueKind == JsonValueKind.String) return c.Value.GetString();
+        return null;
+    }
+
+    public static bool EsDominioPropio(string email, IEnumerable<string> dominios)
+    {
+        var arroba = email.LastIndexOf('@');
+        if (arroba < 0) return false;
+        var dominio = email[(arroba + 1)..].Trim().ToLowerInvariant();
+        return dominios.Any(d => dominio == d.ToLowerInvariant() || dominio.EndsWith("." + d.ToLowerInvariant()));
+    }
+
     public static (string Email, string? Nombre) Remitente(string? valor)
     {
         if (string.IsNullOrWhiteSpace(valor)) return ("", null);
@@ -106,6 +130,7 @@ public static class EndpointsSoporte
         var de = datos.Value.Texto("from");
         var messageId = datos.Value.Texto("message_id");
         string texto = "";
+        string? responderA = null;
         if (string.IsNullOrWhiteSpace(resend.CurrentValue.ApiKey)) return Results.StatusCode(503);
         try
         {
@@ -122,6 +147,7 @@ public static class EndpointsSoporte
             asunto = correo.Texto("subject") ?? asunto;
             de = correo.Texto("from") ?? de;
             messageId = correo.Texto("message_id") ?? messageId;
+            responderA = ResponderA(correo);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
@@ -131,6 +157,13 @@ public static class EndpointsSoporte
 
         var (email, nombre) = Remitente(de);
         if (string.IsNullOrEmpty(email)) return Results.BadRequest();
+        // Formulario del sitio o aviso de un producto: el remitente es nuestro y quien escribió va en Reply-To.
+        if (responderA is not null && EsDominioPropio(email, op.CurrentValue.CorreoEntrante.DominiosPropios)
+            && Remitente(responderA) is { Email.Length: > 0 } quien && !EsDominioPropio(quien.Email, op.CurrentValue.CorreoEntrante.DominiosPropios))
+        {
+            logger.LogInformation("Correo de {Propio} registrado a nombre de su Reply-To {Email}.", email, quien.Email);
+            (email, nombre) = (quien.Email, quien.Nombre ?? nombre);
+        }
         var r2 = await soporte.RecibirCorreoAsync(email, nombre, asunto, texto, messageId ?? emailId);
         if (r2 is null) return Results.Ok(new { repetido = true });
         logger.LogInformation("Correo de {Email} agregado a {Folio} ({Tipo}).", email, r2.Value.Ticket.Folio, r2.Value.Nuevo ? "nuevo" : "hilo");

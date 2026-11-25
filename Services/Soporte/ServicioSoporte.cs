@@ -25,6 +25,12 @@ public class OpcionesCorreoEntrante
     /// <summary>Secreto de firma del webhook de Resend (whsec_…).</summary>
     public string? SecretoWebhook { get; set; }
     public string ResendBaseUrl { get; set; } = "https://api.resend.com";
+
+    /// <summary>
+    /// Dominios propios (formularios y avisos de los productos). Si el remitente es de uno de ellos y el correo trae
+    /// Reply-To, el ticket se registra a nombre de ese Reply-To: la persona que escribió, no el formulario.
+    /// </summary>
+    public string[] DominiosPropios { get; set; } = ["globalappsuite.com.mx"];
 }
 
 public sealed record DatosTicketNuevo(
