@@ -108,7 +108,7 @@
                                     </div>
                                 }
                                 <div class="small text-muted">
-                                    En Stripe crea una <strong>clave restringida</strong> con permiso de solo lectura para Customers, Subscriptions, Invoices, Charges y Balance.
+                                    En Stripe crea una <strong>clave restringida</strong> con permiso de solo lectura para Customers, Subscriptions, Invoices, Charges y Balance (y Products, opcional, para el nombre del plan).
                                     @(Model.EsNuevo ? "Después de conectar la cuenta podrás capturarla aquí." : "")
                                 </div>
                                 @if (!Model.EsNuevo && User.IsInRole(RolesBase.Admin))

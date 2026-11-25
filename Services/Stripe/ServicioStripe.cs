@@ -116,10 +116,24 @@ public class ServicioStripe
             return s;
         }
 
-        // ---------- Suscripciones (con cliente y producto expandidos) ----------
+        // ---------- Productos (solo el nombre, para el plan) ----------
+        // Stripe no permite expandir más de 4 niveles en una lista (data.items.data.price.product son 5),
+        // así que los nombres se leen aparte. Si la clave no tiene permiso de Products, el plan usa el apodo del precio.
+        var productos = new Dictionary<string, string>(StringComparer.Ordinal);
+        try
+        {
+            await foreach (var pr in _stripe.ListarAsync(apiKey, "/v1/products", ct))
+                if (pr.Texto("id") is { } pid && pr.Texto("name") is { } pnombre) productos[pid] = pnombre;
+        }
+        catch (ErrorStripe ex)
+        {
+            _logger.LogInformation("Stripe {Cuenta}: sin nombres de productos ({Motivo}).", c.Clave, ex.Message);
+        }
+
+        // ---------- Suscripciones (con el cliente expandido) ----------
         var nSus = 0;
         await foreach (var j in _stripe.ListarAsync(apiKey,
-                           "/v1/subscriptions?status=all&expand[]=data.customer&expand[]=data.items.data.price.product", ct))
+                           "/v1/subscriptions?status=all&expand[]=data.customer", ct))
         {
             nSus++;
             var id = j.Texto("id")!;
@@ -148,7 +162,12 @@ public class ServicioStripe
                     var precio = it.Prop("price");
                     if (precio is not { } p) continue;
                     var producto = p.Prop("product");
-                    var nombre = producto is { ValueKind: JsonValueKind.Object } po ? po.Texto("name") : null;
+                    var nombre = producto switch
+                    {
+                        { ValueKind: JsonValueKind.Object } po => po.Texto("name"),
+                        { ValueKind: JsonValueKind.String } ps => productos.GetValueOrDefault(ps.GetString()!),
+                        _ => null
+                    };
                     plan ??= string.Join(" · ", new[] { nombre, p.Texto("nickname") }.Where(x => !string.IsNullOrWhiteSpace(x)));
                     // Un concepto sin periodo (cobro único) no suma al MRR ni define el intervalo.
                     if (p.Prop("recurring") is not { } recurrente) continue;
