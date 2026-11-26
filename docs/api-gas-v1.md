@@ -209,10 +209,48 @@ conversación **visible para el cliente** (nunca las notas internas), para mostr
 
 ```json
 { "folio": "TKT-2026-0042", "asunto": "…", "estado": "enespera", "actualizadoUtc": "…",
-  "mensajes": [ { "tipo": "cliente", "texto": "…", "fechaUtc": "…" }, { "tipo": "soporte", "texto": "…", "fechaUtc": "…" } ] }
+  "mensajes": [
+    { "id": 120, "tipo": "cliente", "autor": "María López", "texto": "…", "fechaUtc": "…", "referencia": "msg-881" },
+    { "id": 125, "tipo": "soporte", "autor": "Manuel Flores", "texto": "…", "fechaUtc": "…", "referencia": null } ] }
 ```
 
-Solo se pueden consultar tickets del mismo producto que firma.
+- `estado`: `nuevo`, `abierto`, `enespera` (esperando al cliente), `escalado`, `resuelto` o `cerrado`.
+- `id` es único en GAS-Admin: guárdalo en el mensaje del producto para no importarlo dos veces.
+- `referencia` es el id que el producto mandó al crear ese mensaje (ver abajo); `null` si se escribió
+  en GAS-Admin o llegó por correo. Un mensaje con referencia tuya ya lo tienes.
+
+Solo se pueden consultar y modificar tickets del mismo producto que firma.
+
+### 7.1 Conversación sincronizada
+
+El producto puede mostrar y continuar la conversación; lo que se escribe en un lado aparece en el otro.
+
+`POST https://<gas-admin>/api/gas/v1/tickets/{folio}/mensajes`
+
+```json
+{ "tipo": "cliente", "texto": "Ya probé y sigue igual.", "autor": "María López",
+  "email": "maria@laesperanza.mx", "referencia": "msg-881", "resolver": false }
+```
+
+- `tipo`: `cliente` (lo escribió el usuario en el producto) o `soporte` (lo escribió el equipo en el
+  panel de soporte del producto). `texto` (máx. 8000) y `referencia` (máx. 100, id del mensaje en el
+  producto) son obligatorios; repetir la referencia devuelve el mismo mensaje (`200`, `"existente": true`).
+- Un mensaje del cliente reabre el ticket si estaba resuelto o esperando; en un ticket `cerrado`
+  responde `409` (hay que abrir otro). Un mensaje de soporte lo deja esperando al cliente, o
+  resuelto con `"resolver": true`. GAS-Admin no reenvía por correo lo que llega del producto.
+- Respuesta `201 {"id": 125, "folio": "…", "estado": "enespera", "existente": false}`.
+
+`POST https://<gas-admin>/api/gas/v1/tickets/{folio}/estado` con `{"estado": "resuelto"}`
+(`abierto`, `resuelto` o `cerrado`) cuando el panel del producto cambia el estado.
+
+**Aviso de cambios (GAS-Admin → producto).** Cuando en GAS-Admin se responde un ticket, cambia su
+estado o el cliente contesta por correo, GAS-Admin llama al producto (firmado como en la sección 1):
+
+`POST {urlApi}/tickets/sincronizar` con `{"folio": "TKT-2026-0042", "referencia": "<referencia del ticket>"}`
+
+El producto responde `200` y trae la conversación con el `GET` de arriba, importando los mensajes
+cuyo `id` aún no tiene. Es un aviso best-effort: el producto también debe sincronizar al abrir el
+ticket. Si el producto no implementa la ruta (404), GAS-Admin lo ignora.
 
 ## 8. Versionado
 

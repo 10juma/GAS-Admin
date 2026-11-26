@@ -130,6 +130,26 @@ public class ServicioConexiones
         return (json, (int)reloj.ElapsedMilliseconds);
     }
 
+    // ===================== Tickets =====================
+
+    /// <summary>
+    /// Le avisa al producto que un ticket suyo cambió en GAS-Admin (POST /tickets/sincronizar) para que traiga la
+    /// conversación con GET /api/gas/v1/tickets/{folio}. Un producto que aún no lo implementa responde 404: se ignora.
+    /// </summary>
+    public async Task AvisarTicketAsync(string clave, string folio, string referencia, CancellationToken ct)
+    {
+        var c = await _db.ConexionesProducto.AsNoTracking().FirstOrDefaultAsync(x => x.Clave == clave && x.Activa, ct);
+        if (c is null) return;
+        try
+        {
+            await EnviarAsync(c, HttpMethod.Post, "/tickets/sincronizar", new { folio, referencia }, "sistema", ct);
+        }
+        catch (ErrorConexion ex) when (ex.Message.Contains("/tickets/sincronizar"))
+        {
+            // El producto todavía no implementa el aviso (404): verá los cambios al abrir el ticket.
+        }
+    }
+
     // ===================== Sincronización =====================
 
     public async Task<List<ResultadoConexion>> SincronizarTodasAsync(CancellationToken ct = default)

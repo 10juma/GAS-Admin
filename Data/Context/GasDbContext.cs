@@ -219,6 +219,8 @@ public class GasDbContext : IdentityDbContext<ApplicationUser, IdentityRole, str
             entity.Property(m => m.Texto).IsRequired();
             entity.Property(m => m.CorreoId).HasMaxLength(200);
             entity.Property(m => m.CorreoError).HasMaxLength(500);
+            entity.Property(m => m.ReferenciaExterna).HasMaxLength(150);
+            entity.HasIndex(m => m.ReferenciaExterna).IsUnique().HasFilter("[ReferenciaExterna] IS NOT NULL");
             entity.HasIndex(m => new { m.TicketId, m.FechaUtc });
             entity.HasOne(m => m.Ticket).WithMany(t => t.Mensajes).HasForeignKey(m => m.TicketId).OnDelete(DeleteBehavior.Cascade);
         });

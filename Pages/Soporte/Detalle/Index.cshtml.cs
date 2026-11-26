@@ -95,6 +95,7 @@ public class IndexModel : PageModel
         if (asignadoId is not null && !await _db.Users.AnyAsync(u => u.Id == asignadoId)) asignadoId = null;
 
         var cambios = new List<string>();
+        var cambioEstado = t.Estado != estado;
         if (t.Estado != estado)
         {
             cambios.Add($"estado: {ServicioSoporte.TextoEstado(t.Estado)} → {ServicioSoporte.TextoEstado(estado)}");
@@ -126,6 +127,7 @@ public class IndexModel : PageModel
             return RedirectToPage(new { id });
         }
         await _soporte.NotaAsync(t, $"{User.NombreVisible()} cambió {string.Join("; ", cambios)}.", "Sistema", TipoMensajeTicket.Sistema);
+        if (cambioEstado) await _soporte.AvisarProductoAsync(t);
         _contadores.Invalidar();
         this.ToastSuccess($"Ticket {t.Folio} actualizado.");
         return RedirectToPage(new { id });

@@ -17,6 +17,8 @@ namespace GAS.Admin.Services.Soporte;
 /// Endpoints externos de soporte (sin sesión, protegidos con firma):
 ///  - POST /webhooks/resend/correo-entrante — webhook de Resend Inbound (firma Svix).
 ///  - POST /api/gas/v1/tickets y GET /api/gas/v1/tickets/{folio} — tickets desde los productos (firma HMAC de la API GAS).
+///  - POST /api/gas/v1/tickets/{folio}/mensajes y …/estado — el producto agrega mensajes (del cliente o de su panel de
+///    soporte) y cambia el estado; la conversación queda igual en ambos lados.
 /// </summary>
 public static class EndpointsSoporte
 {
@@ -28,6 +30,8 @@ public static class EndpointsSoporte
         app.MapPost("/webhooks/resend/correo-entrante", CorreoEntranteAsync).DisableAntiforgery();
         app.MapPost("/api/gas/v1/tickets", CrearTicketAsync).DisableAntiforgery();
         app.MapGet("/api/gas/v1/tickets/{folio}", ConsultarTicketAsync);
+        app.MapPost("/api/gas/v1/tickets/{folio}/mensajes", MensajeTicketAsync).DisableAntiforgery();
+        app.MapPost("/api/gas/v1/tickets/{folio}/estado", EstadoTicketAsync).DisableAntiforgery();
     }
 
     private static async Task<string?> LeerCuerpoAsync(HttpRequest req)
@@ -241,15 +245,94 @@ public static class EndpointsSoporte
         var t = await db.Tickets.AsNoTracking().Include(x => x.Mensajes)
             .FirstOrDefaultAsync(x => x.Folio == folio && x.ProductoId == conexion.ProductoId);
         if (t is null) return Results.Json(new { error = "no encontrado" }, statusCode: 404);
+        var prefijo = conexion.Clave + ":";
         return Results.Json(new
         {
             folio = t.Folio,
             asunto = t.Asunto,
-            estado = t.Estado.ToString().ToLowerInvariant(),
-            actualizadoUtc = t.UltimaActividadUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture),
-            // Solo lo que vio el cliente: nunca notas internas.
+            estado = EstadoApi(t.Estado),
+            actualizadoUtc = Fecha(t.UltimaActividadUtc),
+            // Solo lo que vio el cliente: nunca notas internas. "referencia" = id del mensaje en el producto si salió de ahí.
             mensajes = t.Mensajes.Where(m => m.Tipo is TipoMensajeTicket.Cliente or TipoMensajeTicket.Respuesta).OrderBy(m => m.FechaUtc)
-                .Select(m => new { tipo = m.Tipo == TipoMensajeTicket.Cliente ? "cliente" : "soporte", texto = m.Texto, fechaUtc = m.FechaUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture) })
+                .Select(m => new
+                {
+                    id = m.Id,
+                    tipo = m.Tipo == TipoMensajeTicket.Cliente ? "cliente" : "soporte",
+                    autor = m.Autor,
+                    texto = m.Texto,
+                    fechaUtc = Fecha(m.FechaUtc),
+                    referencia = m.ReferenciaExterna is { } r && r.StartsWith(prefijo, StringComparison.Ordinal) ? r[prefijo.Length..] : null
+                })
         }, Json);
     }
+
+    private sealed record MensajeProducto(string? Tipo, string? Texto, string? Autor, string? Email, string? Referencia, bool? Resolver);
+
+    /// <summary>
+    /// El producto agrega un mensaje: "cliente" (lo escribió el usuario en el producto) o "soporte" (lo escribió el
+    /// equipo en el panel del producto). Idempotente por referencia (id del mensaje en el producto).
+    /// </summary>
+    private static async Task<IResult> MensajeTicketAsync(string folio, HttpRequest req, GasDbContext db, ServicioConexiones conexiones, ServicioSoporte soporte)
+    {
+        var cuerpo = await LeerCuerpoAsync(req);
+        if (cuerpo is null) return Results.StatusCode(413);
+        var conexion = await ConexionFirmadaAsync(req, cuerpo, db, conexiones);
+        if (conexion is null) return Results.Json(new { error = "firma inválida" }, statusCode: 401);
+
+        MensajeProducto? d;
+        try { d = JsonSerializer.Deserialize<MensajeProducto>(cuerpo, Json); }
+        catch (JsonException) { return Results.Json(new { error = "JSON no válido" }, statusCode: 400); }
+        var tipo = d?.Tipo?.Trim().ToLowerInvariant();
+        if (d is null || tipo is not ("cliente" or "soporte") || string.IsNullOrWhiteSpace(d.Texto) || string.IsNullOrWhiteSpace(d.Referencia))
+            return Results.Json(new { error = "tipo (cliente|soporte), texto y referencia son obligatorios" }, statusCode: 422);
+        if (d.Texto.Length > 8000 || d.Referencia.Length > 100)
+            return Results.Json(new { error = "texto (máx. 8000) o referencia (máx. 100) demasiado largos" }, statusCode: 422);
+
+        var t = await db.Tickets.FirstOrDefaultAsync(x => x.Folio == folio && x.ProductoId == conexion.ProductoId);
+        if (t is null) return Results.Json(new { error = "no encontrado" }, statusCode: 404);
+        var (m, existente, error) = await soporte.MensajeDesdeProductoAsync(t, tipo == "soporte", d.Texto, d.Autor ?? "", d.Email,
+            $"{conexion.Clave}:{d.Referencia.Trim()}", d.Resolver == true);
+        if (m is null) return Results.Json(new { error }, statusCode: 409);
+        return Results.Json(new { id = m.Id, folio = t.Folio, estado = EstadoApi(t.Estado), existente }, Json, statusCode: existente ? 200 : 201);
+    }
+
+    private sealed record EstadoProducto(string? Estado);
+
+    /// <summary>El producto cambia el estado (su panel de soporte resolvió, cerró o reabrió el ticket).</summary>
+    private static async Task<IResult> EstadoTicketAsync(string folio, HttpRequest req, GasDbContext db, ServicioConexiones conexiones, ServicioSoporte soporte)
+    {
+        var cuerpo = await LeerCuerpoAsync(req);
+        if (cuerpo is null) return Results.StatusCode(413);
+        var conexion = await ConexionFirmadaAsync(req, cuerpo, db, conexiones);
+        if (conexion is null) return Results.Json(new { error = "firma inválida" }, statusCode: 401);
+
+        EstadoProducto? d;
+        try { d = JsonSerializer.Deserialize<EstadoProducto>(cuerpo, Json); }
+        catch (JsonException) { return Results.Json(new { error = "JSON no válido" }, statusCode: 400); }
+        EstadoTicket? nuevo = d?.Estado?.Trim().ToLowerInvariant() switch
+        {
+            "abierto" => EstadoTicket.Abierto,
+            "resuelto" => EstadoTicket.Resuelto,
+            "cerrado" => EstadoTicket.Cerrado,
+            _ => null
+        };
+        if (nuevo is null) return Results.Json(new { error = "estado debe ser abierto, resuelto o cerrado" }, statusCode: 422);
+
+        var t = await db.Tickets.FirstOrDefaultAsync(x => x.Folio == folio && x.ProductoId == conexion.ProductoId);
+        if (t is null) return Results.Json(new { error = "no encontrado" }, statusCode: 404);
+        if (t.Estado != nuevo)
+        {
+            var antes = ServicioSoporte.TextoEstado(t.Estado);
+            t.Estado = nuevo.Value;
+            t.ResueltoUtc = nuevo is EstadoTicket.Resuelto or EstadoTicket.Cerrado ? t.ResueltoUtc ?? DateTime.UtcNow : null;
+            t.UltimaActividadUtc = DateTime.UtcNow;
+            await soporte.NotaAsync(t, $"{conexion.Producto.Nombre} cambió el estado: {antes} → {ServicioSoporte.TextoEstado(nuevo.Value)}.", "Sistema", TipoMensajeTicket.Sistema);
+        }
+        return Results.Json(new { folio = t.Folio, estado = EstadoApi(t.Estado) }, Json);
+    }
+
+    /// <summary>Estado para los productos: nuevo, abierto, enespera, escalado, resuelto o cerrado.</summary>
+    private static string EstadoApi(EstadoTicket e) => e.ToString().ToLowerInvariant();
+
+    private static string Fecha(DateTime utc) => utc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
 }

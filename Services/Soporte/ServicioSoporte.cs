@@ -4,6 +4,7 @@ using GAS.Admin.Data.Context;
 using GAS.Admin.Helpers;
 using GAS.Admin.Models.Entities;
 using GAS.Admin.Services.Correo;
+using GAS.Admin.Services.Productos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -45,10 +46,13 @@ public partial class ServicioSoporte
     private readonly PlantillaCorreo _plantilla;
     private readonly OpcionesSoporte _op;
     private readonly ILogger<ServicioSoporte> _logger;
+    private readonly ServicioConexiones _conexiones;
 
-    public ServicioSoporte(GasDbContext db, IServicioCorreo correo, IOptionsMonitor<OpcionesSoporte> op, ILogger<ServicioSoporte> logger, PlantillaCorreo plantilla)
+    public ServicioSoporte(GasDbContext db, IServicioCorreo correo, IOptionsMonitor<OpcionesSoporte> op, ILogger<ServicioSoporte> logger, PlantillaCorreo plantilla,
+        ServicioConexiones conexiones)
     {
         _db = db;
+        _conexiones = conexiones;
         _correo = correo;
         _plantilla = plantilla;
         _op = op.CurrentValue;
@@ -104,7 +108,10 @@ public partial class ServicioSoporte
             Autor = Recortar(d.Autor, 256) ?? "Cliente",
             AutorEmail = Recortar(d.AutorEmail, 256),
             Texto = string.IsNullOrWhiteSpace(d.Descripcion) ? "(sin descripción)" : d.Descripcion.Trim(),
-            CorreoId = d.Canal == CanalTicket.Correo ? Recortar(d.ReferenciaExterna, 200) : null
+            CorreoId = d.Canal == CanalTicket.Correo ? Recortar(d.ReferenciaExterna, 200) : null,
+            // Desde un producto, el mensaje inicial ya lo tiene el producto: lleva la referencia del ticket para
+            // que al sincronizar no lo importe otra vez.
+            ReferenciaExterna = d.Canal == CanalTicket.Producto ? Recortar(d.ReferenciaExterna, 150) : null
         });
         _db.Tickets.Add(t);
         // Dos tickets simultáneos pueden calcular el mismo folio: se reintenta con el siguiente.
@@ -147,7 +154,65 @@ public partial class ServicioSoporte
         }
         else if (t.Estado is EstadoTicket.Nuevo or EstadoTicket.Abierto) t.Estado = EstadoTicket.EnEspera;
         await _db.SaveChangesAsync();
+        await AvisarProductoAsync(t);
         return (m.CorreoEnviado == true, error);
+    }
+
+    /// <summary>
+    /// Mensaje que llega de un producto por la API GAS: del cliente (desde su portal) o una respuesta escrita en el
+    /// panel de soporte del producto. Idempotente por referencia. No se reenvía por correo ni se le avisa al
+    /// producto: el mensaje salió de ahí.
+    /// </summary>
+    public async Task<(TicketMensaje? Mensaje, bool Existente, string? Error)> MensajeDesdeProductoAsync(
+        Ticket t, bool deSoporte, string texto, string autor, string? email, string referencia, bool resolver)
+    {
+        var previo = await _db.TicketMensajes.FirstOrDefaultAsync(m => m.ReferenciaExterna == referencia);
+        if (previo is not null) return (previo, true, null);
+        if (t.Estado == EstadoTicket.Cerrado && !deSoporte)
+            return (null, false, "El ticket está cerrado; abre uno nuevo.");
+
+        var ahora = DateTime.UtcNow;
+        var m = new TicketMensaje
+        {
+            TicketId = t.Id, Tipo = deSoporte ? TipoMensajeTicket.Respuesta : TipoMensajeTicket.Cliente,
+            Autor = Recortar(autor, 256) ?? (deSoporte ? "Soporte" : "Cliente"), AutorEmail = Recortar(email?.Trim(), 256),
+            Texto = texto.Trim(), FechaUtc = ahora, ReferenciaExterna = referencia
+        };
+        _db.TicketMensajes.Add(m);
+        t.UltimaActividadUtc = ahora;
+        if (deSoporte)
+        {
+            t.PrimeraRespuestaUtc ??= ahora;
+            if (resolver) { t.Estado = EstadoTicket.Resuelto; t.ResueltoUtc = ahora; }
+            else if (t.Estado is EstadoTicket.Nuevo or EstadoTicket.Abierto) t.Estado = EstadoTicket.EnEspera;
+        }
+        else if (t.Estado is EstadoTicket.EnEspera or EstadoTicket.Resuelto)
+        {
+            t.Estado = EstadoTicket.Abierto;
+            t.ResueltoUtc = null;
+        }
+        await _db.SaveChangesAsync();
+        return (m, false, null);
+    }
+
+    /// <summary>
+    /// Si el ticket vino de un producto, le avisa que cambió (respuesta, estado o correo del cliente) para que
+    /// traiga la conversación. Best-effort: si el producto no responde, la trae al abrir el ticket.
+    /// </summary>
+    public async Task AvisarProductoAsync(Ticket t)
+    {
+        var r = t.ReferenciaExterna;
+        var i = r?.IndexOf(':') ?? -1;
+        if (r is null || i <= 0) return;
+        try
+        {
+            using var limite = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            await _conexiones.AvisarTicketAsync(r[..i], t.Folio, r[(i + 1)..], limite.Token);
+        }
+        catch (Exception ex) when (ex is ErrorConexion or HttpRequestException or TaskCanceledException or OperationCanceledException)
+        {
+            _logger.LogInformation("No se pudo avisar al producto del ticket {Folio}: {Error}", t.Folio, ex.Message);
+        }
     }
 
     public async Task NotaAsync(Ticket t, string texto, string autor, TipoMensajeTicket tipo = TipoMensajeTicket.Nota)
@@ -213,6 +278,7 @@ public partial class ServicioSoporte
                 existente.ResueltoUtc = null;
             }
             await _db.SaveChangesAsync();
+            await AvisarProductoAsync(existente);
             return (existente, false);
         }
 

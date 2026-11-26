@@ -73,6 +73,11 @@ public class TicketMensaje
     public bool? CorreoEnviado { get; set; }
     public string? CorreoId { get; set; }
     public string? CorreoError { get; set; }
+    /// <summary>
+    /// Mensaje que llegó de un producto (API GAS): "{clave}:{id del mensaje en el producto}". Hace el envío
+    /// idempotente y le dice al producto cuáles mensajes ya tiene (no los vuelve a importar).
+    /// </summary>
+    public string? ReferenciaExterna { get; set; }
 }
 
 /// <summary>Tiempos de servicio por prioridad (horas naturales).</summary>

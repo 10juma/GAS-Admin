@@ -3567,6 +3567,10 @@ namespace GAS.Admin.Data.Migrations
                     b.Property<DateTime>("FechaUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ReferenciaExterna")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<string>("Texto")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -3580,6 +3584,10 @@ namespace GAS.Admin.Data.Migrations
                         .HasColumnType("nvarchar(20)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ReferenciaExterna")
+                        .IsUnique()
+                        .HasFilter("[ReferenciaExterna] IS NOT NULL");
 
                     b.HasIndex("TicketId", "FechaUtc");
 
